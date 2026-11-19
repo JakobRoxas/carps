@@ -1,6 +1,6 @@
 # carps
 
-A new Flutter project.
+shoutout jakob roxas
 
 ## Getting Started
 
