@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Carps API Tester</title>
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <main class="container">
+      <header>
+        <p class="eyebrow">Carps development tool</p>
+        <h1>API tester</h1>
+        <p>Send requests to the local backend without changing the Flutter app.</p>
+      </header>
+
+      <form id="request-form" class="card">
+        <label for="base-url">Base URL</label>
+        <input id="base-url" type="url" value="http://localhost:3000" required>
+
+        <div class="request-row">
+          <div>
+            <label for="method">Method</label>
+            <select id="method">
+              <option>GET</option>
+              <option>POST</option>
+              <option>PUT</option>
+              <option>PATCH</option>
+              <option>DELETE</option>
+            </select>
+          </div>
+          <div class="path-field">
+            <label for="path">Path</label>
+            <input id="path" type="text" value="/events" required>
+          </div>
+        </div>
+
+        <label for="body">JSON body <span class="muted">(optional)</span></label>
+        <textarea id="body" rows="8" placeholder='{"title":"Test event"}'></textarea>
+
+        <button type="submit">Send request</button>
+      </form>
+
+      <section class="card response-card" aria-live="polite">
+        <div class="response-header">
+          <h2>Response</h2>
+          <span id="request-status" class="status">No request sent</span>
+        </div>
+        <pre id="response-output">Your response will appear here.</pre>
+      </section>
+
+      <p class="hint">
+        Start the backend first. The backend must allow requests from this
+        tester's local origin using CORS.
+      </p>
+    </main>
+    <script src="app.js"></script>
+  </body>
+</html>
