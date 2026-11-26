@@ -102,6 +102,29 @@ Si jakob lang toh #onemanarmy
 
 - Maglagay lang kayo ng commit msg haha
 
+## Frontend demo (mock data)
+
+The app runs fully on an in-memory mock (`lib/repositories/mock_carps_repository.dart`)
+behind the `CarpsRepository` interface, with all product rules in
+`lib/services/carps_service.dart`. Swap the repository for Firebase later; widgets
+and rules don't change.
+
+```bash
+flutter run -d chrome          # responsive web
+flutter run -d <android-device> # Android
+```
+
+Demo accounts use `<username>@example.com` / `carps123` (e.g. `anareyes@example.com`),
+or use the purple **DEMO** tab to switch users, simulate a pass scan, end an event,
+or force a failed lookup. Seeded roles: `mikacruz` (builder/host), `anareyes`
+(guest who checks in), `sofiasantos` (checked-in peer), `paolotan` (approved
+no-show), `marcolim` (gets declined), `beavalenzuela` (outsider who follows Mika),
+`davidlim` (second builder), `sambautista` (assigned admin).
+
+The older `event_model`, `user_model`, `group_model`, `social_model`, `event_repository`,
+`group_repository` and `*_controller` files from the backend smoke test are kept but
+unused: they treat an RSVP as attendance, which the current product definition forbids.
+
 ## Local development
 
 Install dependencies and run the Flutter app:

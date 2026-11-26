@@ -1,93 +1,60 @@
 import 'package:flutter/material.dart';
-import 'controllers/event_social_controller.dart';
-import 'controllers/feed_controller.dart';
-import 'controllers/group_controller.dart';
-import 'models/user_model.dart';
-import 'repositories/event_repository.dart';
-import 'repositories/group_repository.dart';
+import 'package:go_router/go_router.dart';
+
+import 'controllers/app_controller.dart';
+import 'core/theme/carps_theme.dart';
+import 'repositories/mock_carps_repository.dart';
+import 'router.dart';
+import 'views/demo/demo_panel.dart';
 
 void main() {
-  // TODO: swap these with firebase later
-  final eventRepo = MockEventRepository();
-  final groupRepo = MockGroupRepository();
-
-  const mockUser = AppUser(
-    id: 'user_1',
-    name: 'Jakob',
-    email: 'jakob@iscool.com',
-    location: 'Manila',
-    interestTags: ['tech', 'flutter', 'music'],
-    followedGroupIds: ['grp_1'],
-  );
-
-  final feedController = FeedController(
-    eventRepository: eventRepo,
-    currentUser: mockUser,
-  )..loadFeed();
-
-  final groupController = GroupController(
-    groupRepository: groupRepo,
-    eventRepository: eventRepo,
-    currentUser: mockUser,
-  )..loadGroups();
-
-  final socialController = EventSocialController(
-    eventRepository: eventRepo,
-    currentUser: mockUser,
-  );
-
-  runApp(MaterialApp(
-    debugShowCheckedModeBanner: false,
-    home: BackendSmokeTestView(
-      feedController: feedController,
-      groupController: groupController,
-      socialController: socialController,
-    ),
-  ));
+  // TODO(firebase): replace MockCarpsRepository with a Firestore-backed
+  // CarpsRepository. Widgets and rules do not need to change.
+  final repo = MockCarpsRepository.seeded(DateTime.now());
+  final controller = AppController(repo);
+  // Dev convenience for screenshots/demos only:
+  //   flutter run --dart-define=CARPS_DEMO_USER=u_ana
+  const demoUser = String.fromEnvironment('CARPS_DEMO_USER');
+  if (demoUser.isNotEmpty && repo.user(demoUser) != null) {
+    controller.signIn(demoUser);
+  }
+  runApp(CarpsApp(controller: controller));
 }
 
-class BackendSmokeTestView extends StatelessWidget {
-  final FeedController feedController;
-  final GroupController groupController;
-  final EventSocialController socialController;
+class CarpsApp extends StatefulWidget {
+  const CarpsApp({super.key, required this.controller});
+  final AppController controller;
 
-  const BackendSmokeTestView({
-    super.key,
-    required this.feedController,
-    required this.groupController,
-    required this.socialController,
-  });
+  @override
+  State<CarpsApp> createState() => _CarpsAppState();
+}
+
+class _CarpsAppState extends State<CarpsApp> {
+  late final GoRouter _router = buildRouter(widget.controller);
+
+  @override
+  void dispose() {
+    _router.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Carps — MVC Backend Smoke Test')),
-      body: ListenableBuilder(
-        listenable: Listenable.merge([feedController, groupController]),
-        builder: (context, _) {
-          if (feedController.isLoading) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          final events = feedController.personalizedFeed;
-          return ListView.builder(
-            itemCount: events.length,
-            itemBuilder: (context, index) {
-              final event = events[index];
-              final isGoing =
-                  event.attendeeIds.contains(feedController.currentUser.id);
-              return ListTile(
-                title: Text(event.title),
-                subtitle: Text(
-                  '${event.location} • ${feedController.socialProofLabel(event)}',
-                ),
-                trailing: ElevatedButton(
-                  onPressed: () => feedController.toggleRsvp(event.id),
-                  child: Text(isGoing ? 'Going ✓' : 'RSVP'),
-                ),
-              );
-            },
-          );
-        },
+    return AppScope(
+      controller: widget.controller,
+      child: MaterialApp.router(
+        title: 'CARPS',
+        debugShowCheckedModeBanner: false,
+        theme: carpsLightTheme,
+        // Dark mode is a stretch goal; the light theme ships first.
+        themeMode: ThemeMode.light,
+        routerConfig: _router,
+        builder: (context, child) => Stack(
+          children: [
+            child ?? const SizedBox.shrink(),
+            DemoLauncher(router: _router),
+          ],
+        ),
       ),
     );
   }
