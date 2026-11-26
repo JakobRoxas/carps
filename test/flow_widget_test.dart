@@ -43,8 +43,11 @@ void main() {
     final f = find.text(text);
     if (f.evaluate().isEmpty) {
       // Lazily built list (e.g. the demo sheet): scroll until it exists.
-      await tester.scrollUntilVisible(f, 200,
-          scrollable: find.byType(Scrollable).last);
+      await tester.scrollUntilVisible(
+        f,
+        200,
+        scrollable: find.byType(Scrollable).last,
+      );
     }
     await tester.ensureVisible(f.first);
     await settle(tester);
@@ -53,7 +56,8 @@ void main() {
   }
 
   final loginLogo = find.byWidgetPredicate(
-    (widget) => widget is Image && widget.semanticLabel == 'CARPS koi ring logo',
+    (widget) =>
+        widget is Image && widget.semanticLabel == 'CARPS koi ring logo',
   );
   final spinningLogo = find.ancestor(
     of: loginLogo,
@@ -63,7 +67,10 @@ void main() {
   testWidgets('login ring makes one turn and stops', (tester) async {
     app = AppController(MockCarpsRepository.seeded(now), clock: () => now);
     await tester.pumpWidget(CarpsApp(controller: app));
-    final transform = find.ancestor(of: loginLogo, matching: find.byType(Transform));
+    final transform = find.ancestor(
+      of: loginLogo,
+      matching: find.byType(Transform),
+    );
     final start = tester.widget<Transform>(transform.first).transform.clone();
     expect(spinningLogo, findsOneWidget);
     await tester.pump(const Duration(milliseconds: 180));
@@ -72,8 +79,9 @@ void main() {
     expect(tester.binding.hasScheduledFrame, isFalse);
   });
 
-  testWidgets('login ring is visible without rotation with reduced motion',
-      (tester) async {
+  testWidgets('login ring is visible without rotation with reduced motion', (
+    tester,
+  ) async {
     tester.platformDispatcher.accessibilityFeaturesTestValue =
         const FakeAccessibilityFeatures(disableAnimations: true);
     addTearDown(tester.platformDispatcher.clearAccessibilityFeaturesTestValue);
@@ -82,10 +90,15 @@ void main() {
     expect(spinningLogo, findsNothing);
   });
 
-  testWidgets('login with email lands a returning user on Home', (tester) async {
+  testWidgets('login with email lands a returning user on Home', (
+    tester,
+  ) async {
     await boot(tester);
     expect(find.text('Continue with Google'), findsOneWidget);
-    await tester.enterText(find.byType(TextFormField).at(0), 'anareyes@example.com');
+    await tester.enterText(
+      find.byType(TextFormField).at(0),
+      'anareyes@example.com',
+    );
     await tester.enterText(find.byType(TextFormField).at(1), 'carps123');
     await tester.tap(find.text('Log in').last);
     await settle(tester);
@@ -94,20 +107,29 @@ void main() {
     expect(find.text('Hosting'), findsOneWidget);
   });
 
-  testWidgets('wrong password shows an error and stays on login', (tester) async {
+  testWidgets('wrong password shows an error and stays on login', (
+    tester,
+  ) async {
     await boot(tester);
-    await tester.enterText(find.byType(TextFormField).at(0), 'anareyes@example.com');
+    await tester.enterText(
+      find.byType(TextFormField).at(0),
+      'anareyes@example.com',
+    );
     await tester.enterText(find.byType(TextFormField).at(1), 'nope-nope');
     await tester.tap(find.text('Log in').last);
     await settle(tester);
     expect(find.text('Email or password is incorrect.'), findsOneWidget);
   });
 
-  testWidgets('new sign-up goes through onboarding (no admin option)',
-      (tester) async {
+  testWidgets('new sign-up goes through onboarding (no admin option)', (
+    tester,
+  ) async {
     await boot(tester);
     await tapText(tester, 'Sign up');
-    await tester.enterText(find.byType(TextFormField).at(0), 'newbie@example.com');
+    await tester.enterText(
+      find.byType(TextFormField).at(0),
+      'newbie@example.com',
+    );
     await tester.enterText(find.byType(TextFormField).at(1), 'longpassword');
     await tester.tap(find.text('Create account'));
     await settle(tester);
@@ -143,13 +165,16 @@ void main() {
     go(tester, '/event/$live/roster');
     await settle(tester);
     final approve = find.descendant(
-        of: find.byKey(const ValueKey('request-${DemoIds.ana}')),
-        matching: find.text('Approve'));
+      of: find.byKey(const ValueKey('request-${DemoIds.ana}')),
+      matching: find.text('Approve'),
+    );
     await tester.ensureVisible(approve);
     await tester.tap(approve);
     await settle(tester);
-    expect(app.service.registrationFor(live, DemoIds.ana)!.status,
-        RegistrationStatus.approved);
+    expect(
+      app.service.registrationFor(live, DemoIds.ana)!.status,
+      RegistrationStatus.approved,
+    );
 
     // 3 · Ana sees the pass.
     app.signIn(DemoIds.ana);
@@ -167,7 +192,9 @@ void main() {
     await settle(tester);
     Future<void> scanRow(String name) async {
       final row = find.ancestor(
-          of: find.text(name), matching: find.byType(ListTile));
+        of: find.text(name),
+        matching: find.byType(ListTile),
+      );
       final btn = find.descendant(of: row.first, matching: find.text('Scan'));
       await tester.ensureVisible(btn);
       await tester.tap(btn);
@@ -192,7 +219,10 @@ void main() {
     await settle(tester);
     await tapText(tester, 'Share experience');
     expect(find.text('Pop and Pickle: Pickle Open Play'), findsWidgets);
-    await tester.enterText(find.byType(TextField).first, 'Won my first doubles game!');
+    await tester.enterText(
+      find.byType(TextField).first,
+      'Won my first doubles game!',
+    );
     await settle(tester);
     await tapText(tester, '@mikacruz');
     await tapText(tester, '@sofiasantos');
@@ -211,37 +241,44 @@ void main() {
     matching: find.byType(ColoredBox),
   );
 
-  testWidgets('My RSVPs keeps the dark sheet to the bottom of a tall viewport',
-      (tester) async {
-    await boot(tester);
-    tester.view.physicalSize = const Size(390 * 3, 1200 * 3);
-    app.signIn(DemoIds.ana);
-    await settle(tester);
-    go(tester, '/rsvps');
-    await settle(tester);
+  testWidgets(
+    'My RSVPs keeps the dark sheet to the bottom of a tall viewport',
+    (tester) async {
+      await boot(tester);
+      tester.view.physicalSize = const Size(390 * 3, 1200 * 3);
+      app.signIn(DemoIds.ana);
+      await settle(tester);
+      go(tester, '/rsvps');
+      await settle(tester);
 
-    void expectDarkFooter() {
-      final footer = tester.getRect(rsvpFooter);
-      expect(footer.top,
-          closeTo(tester.getRect(find.byType(DarkSheet)).bottom, 0.01));
-      expect(footer.bottom, closeTo(1200, 0.01));
-      expect(tester.widget<ColoredBox>(rsvpFooter).color,
-          CarpsColors.light.inverse);
-    }
+      void expectDarkFooter() {
+        final footer = tester.getRect(rsvpFooter);
+        expect(
+          footer.top,
+          closeTo(tester.getRect(find.byType(DarkSheet)).bottom, 0.01),
+        );
+        expect(footer.bottom, closeTo(1200, 0.01));
+        expect(
+          tester.widget<ColoredBox>(rsvpFooter).color,
+          CarpsColors.light.inverse,
+        );
+      }
 
-    expectDarkFooter();
-    // Filtering down to zero results should not expose the page background.
-    await tester.tap(find.text('Wed'));
-    await settle(tester);
-    expect(find.text('No RSVPs on this day'), findsOneWidget);
-    expectDarkFooter();
-    await tapText(tester, 'Show all');
-    expect(find.text('No RSVPs on this day'), findsNothing);
-    expectDarkFooter();
-  });
+      expectDarkFooter();
+      // Filtering down to zero results should not expose the page background.
+      await tester.tap(find.text('Wed'));
+      await settle(tester);
+      expect(find.text('No RSVPs on this day'), findsOneWidget);
+      expectDarkFooter();
+      await tapText(tester, 'Show all');
+      expect(find.text('No RSVPs on this day'), findsNothing);
+      expectDarkFooter();
+    },
+  );
 
-  testWidgets('My RSVPs scrolls on a narrow phone without a white footer',
-      (tester) async {
+  testWidgets('My RSVPs scrolls on a narrow phone without a white footer', (
+    tester,
+  ) async {
     await boot(tester);
     tester.view.physicalSize = const Size(320 * 3, 540 * 3);
     const eventId = DemoIds.pickleballLive;
@@ -254,7 +291,9 @@ void main() {
     await settle(tester);
 
     final scrollable = find.descendant(
-        of: find.byType(RsvpsView), matching: find.byType(Scrollable));
+      of: find.byType(RsvpsView),
+      matching: find.byType(Scrollable),
+    );
     final position = tester.state<ScrollableState>(scrollable).position;
     expect(position.maxScrollExtent, greaterThan(0));
     await tester.drag(scrollable, const Offset(0, -600));
@@ -302,13 +341,18 @@ void main() {
     go(tester, '/compose');
     await settle(tester);
     expect(find.text('No attended events yet'), findsOneWidget);
-    final publish = tester.widget<TextButton>(find.ancestor(
-        of: find.text('Publish post'), matching: find.byType(TextButton)));
+    final publish = tester.widget<TextButton>(
+      find.ancestor(
+        of: find.text('Publish post'),
+        matching: find.byType(TextButton),
+      ),
+    );
     expect(publish.onPressed, isNull);
   });
 
-  testWidgets('failed lookup is distinct from empty and blocks publishing',
-      (tester) async {
+  testWidgets('failed lookup is distinct from empty and blocks publishing', (
+    tester,
+  ) async {
     await boot(tester);
     app.signIn(DemoIds.ana);
     app.setSimulateFailure(true);
@@ -319,8 +363,9 @@ void main() {
     expect(find.text('No attended events yet'), findsNothing);
   });
 
-  testWidgets('outsider cannot see the private tagged post anywhere',
-      (tester) async {
+  testWidgets('outsider cannot see the private tagged post anywhere', (
+    tester,
+  ) async {
     await boot(tester);
     final privateBody = app.repo.post(DemoIds.privatePost)!.body;
     app.signIn(DemoIds.bea);
@@ -352,8 +397,9 @@ void main() {
     expect(find.text(privateBody), findsOneWidget);
   });
 
-  testWidgets('desktop width uses a navigation rail with Create event',
-      (tester) async {
+  testWidgets('desktop width uses a navigation rail with Create event', (
+    tester,
+  ) async {
     tester.view.physicalSize = const Size(1280, 900);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
@@ -363,11 +409,54 @@ void main() {
     await settle(tester);
     expect(find.text('Create event'), findsOneWidget);
     expect(find.text('Settings'), findsOneWidget);
+    go(tester, '/search');
+    await settle(tester);
+    expect(find.text('Search events'), findsOneWidget);
+    expect(find.text('Explore'), findsOneWidget);
+    expect(find.text('Settings'), findsOneWidget);
+    go(tester, '/event/${DemoIds.pickleballLive}');
+    await settle(tester);
+    expect(find.text('Settings'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+
+    app.signIn(DemoIds.mika);
+    await settle(tester);
+    expect(app.me!.hostingEnabled, isTrue);
+    go(tester, '/builder-setup');
+    await settle(tester);
+    expect(find.text('Community host guidelines'), findsOneWidget);
+    expect(find.byType(BottomActionBar), findsNothing);
+    go(tester, '/create');
+    await settle(tester);
+    expect(tester.takeException(), isNull);
+    expect(find.text('Turn on hosting first'), findsNothing);
+    expect(find.text('LISTING PREVIEW'), findsOneWidget);
+    expect(find.text('Publish event'), findsOneWidget);
+    expect(find.byType(BottomActionBar), findsNothing);
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('demo panel uses the real rules (switch user, scan, end)',
-      (tester) async {
+  testWidgets('hosting and event forms keep mobile actions on phone', (
+    tester,
+  ) async {
+    await boot(tester);
+    app.signIn(DemoIds.mika);
+    await settle(tester);
+
+    go(tester, '/builder-setup');
+    await settle(tester);
+    expect(find.byType(BottomActionBar), findsOneWidget);
+
+    go(tester, '/create');
+    await settle(tester);
+    expect(find.byType(BottomActionBar), findsOneWidget);
+    expect(find.text('LISTING PREVIEW'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('demo panel uses the real rules (switch user, scan, end)', (
+    tester,
+  ) async {
     await boot(tester);
     await tapText(tester, 'DEMO');
     expect(find.text('Demo controls'), findsOneWidget);
@@ -391,17 +480,20 @@ void main() {
     await tester.ensureVisible(endButtons.first);
     await tester.tap(endButtons.first);
     await settle(tester);
-    expect(app.repo.events.where((e) => e.isEnded(now)).length,
-        greaterThan(4));
+    expect(app.repo.events.where((e) => e.isEnded(now)).length, greaterThan(4));
     // Ending doesn't grant eligibility to people who weren't scanned.
     expect(app.service.eligiblePostEvents(DemoIds.paolo), isEmpty);
   });
 
   test('seed sanity', () {
     final repo = MockCarpsRepository.seeded(now);
-    expect(repo.events.where((e) => e.visibility == EventVisibility.private),
-        isNotEmpty);
-    expect(repo.events.where((e) => e.visibility == EventVisibility.public),
-        isNotEmpty);
+    expect(
+      repo.events.where((e) => e.visibility == EventVisibility.private),
+      isNotEmpty,
+    );
+    expect(
+      repo.events.where((e) => e.visibility == EventVisibility.public),
+      isNotEmpty,
+    );
   });
 }

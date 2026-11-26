@@ -1,3 +1,4 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/carps_icons.dart';
@@ -330,9 +331,19 @@ class _SettingsViewState extends State<SettingsView> {
                       label: 'Log out of ${me.displayName.split(' ').first}\'s account',
                       icon: CarpsIcons.signOut,
                       kind: CarpsButtonKind.secondary,
-                      onPressed: () {
-                        app.signOut();
-                        context.go('/login');
+                      onPressed: () async {
+                        final messenger = ScaffoldMessenger.of(context);
+                        final router = GoRouter.of(context);
+                        try {
+                          await app.signOut();
+                          if (mounted) router.go('/login');
+                        } on FirebaseAuthException catch (error) {
+                          if (mounted) {
+                            messenger.showSnackBar(SnackBar(
+                                content: Text(error.message ??
+                                    'Could not sign out. Please try again.')));
+                          }
+                        }
                       },
                     ),
                     const SizedBox(height: 16),

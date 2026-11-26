@@ -1,10 +1,14 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/carps_icons.dart';
 
 import '../../core/theme/carps_colors.dart';
 import '../../core/widgets/carps_widgets.dart';
+import '../../controllers/app_controller.dart';
+import '../../models/carps_models.dart';
 import '../../services/carps_service.dart';
+import '../../services/firebase_auth_gateway.dart';
 
 /// Figma 02 · Password Recovery. Email sending is simulated.
 class RecoveryView extends StatefulWidget {
@@ -19,6 +23,8 @@ class _RecoveryViewState extends State<RecoveryView> {
   final _email = TextEditingController();
   bool _sent = false;
   bool _busy = false;
+  bool _simulated = false;
+  String? _error;
 
   @override
   void dispose() {
@@ -28,13 +34,37 @@ class _RecoveryViewState extends State<RecoveryView> {
 
   Future<void> _send() async {
     if (!_form.currentState!.validate()) return;
-    setState(() => _busy = true);
-    await Future<void>.delayed(const Duration(milliseconds: 400));
-    if (mounted) {
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    final gateway = context.appRead.authGateway;
+    try {
+      if (gateway == null) {
+        await Future<void>.delayed(const Duration(milliseconds: 400));
+      } else {
+        await gateway.sendPasswordResetEmail(_email.text);
+      }
+      if (!mounted) return;
       setState(() {
         _busy = false;
         _sent = true;
+        _simulated = gateway == null;
       });
+    } on RuleViolation catch (error) {
+      if (mounted) {
+        setState(() {
+          _busy = false;
+          _error = error.message;
+        });
+      }
+    } on FirebaseAuthException catch (error) {
+      if (mounted) {
+        setState(() {
+          _busy = false;
+          _error = firebaseAuthErrorMessage(error);
+        });
+      }
     }
   }
 
@@ -123,9 +153,10 @@ class _RecoveryViewState extends State<RecoveryView> {
                               textAlign: TextAlign.center,
                               style: TextStyle(color: d.textSecondary)),
                           const SizedBox(height: 12),
-                          const Center(
-                              child: SimulatedTag(
-                                  text: 'Simulated · no email sent')),
+                          if (_simulated)
+                            const Center(
+                                child: SimulatedTag(
+                                    text: 'Simulated · no email sent')),
                           const SizedBox(height: 24),
                           CarpsButton(
                               label: 'Back to log in',
@@ -142,6 +173,7 @@ class _RecoveryViewState extends State<RecoveryView> {
                           const SizedBox(height: 8),
                           TextFormField(
                             controller: _email,
+                            onChanged: (_) => setState(() => _error = null),
                             keyboardType: TextInputType.emailAddress,
                             decoration: const InputDecoration(
                               hintText: 'ana@example.com',
@@ -153,6 +185,11 @@ class _RecoveryViewState extends State<RecoveryView> {
                                 : 'Enter a valid email address.',
                             onFieldSubmitted: (_) => _send(),
                           ),
+                          if (_error != null) ...[
+                            const SizedBox(height: 8),
+                            Text(_error!,
+                                style: TextStyle(color: d.error, fontSize: 13)),
+                          ],
                           const SizedBox(height: 24),
                           CarpsButton(
                               label: 'Send reset link',

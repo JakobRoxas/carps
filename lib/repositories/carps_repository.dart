@@ -11,6 +11,11 @@ import '../models/carps_models.dart';
 ///
 /// The repository notifies listeners after every write so the UI rebuilds.
 abstract class CarpsRepository extends ChangeNotifier {
+  /// Last remote persistence failure, if any. Mock repositories have none.
+  String? get persistenceError => null;
+
+  void clearPersistenceError() {}
+
   // Users
   List<UserProfile> get users;
   UserProfile? user(String id);
@@ -37,6 +42,11 @@ abstract class CarpsRepository extends ChangeNotifier {
   // Attendance (created only by a valid first scan)
   List<Attendance> get attendance;
   void saveAttendance(Attendance record);
+  void resolveAttendanceCorrection(
+      SupportCase supportCase, Attendance? record) {
+    if (record != null) saveAttendance(record);
+    saveCase(supportCase);
+  }
 
   // Posts
   List<ExperiencePost> get posts;

@@ -1171,6 +1171,7 @@ class CarpsService {
       throw const RuleViolation('Record the reason for your decision.');
     }
     final link = parseLink(c.link);
+    Attendance? correctedAttendance;
     switch (outcome) {
       case CaseOutcome.noAction:
       case CaseOutcome.warnedUser:
@@ -1196,17 +1197,25 @@ class CarpsService {
               'Only an approved guest\'s attendance can be corrected.');
         }
         if (!hasAttended(event.id, c.reporterId)) {
-          repo.saveAttendance(Attendance(
+          correctedAttendance = Attendance(
             eventId: event.id,
             userId: c.reporterId,
             arrivedAt: event.start,
             scannedById: event.hostId,
             passId: reg!.passId,
-          ));
+          );
         }
     }
-    repo.saveCase(c.close(
-        outcome: outcome, note: note.trim(), at: now, hostConfirmed: hostConfirmed));
+    final resolved = c.close(
+        outcome: outcome,
+        note: note.trim(),
+        at: now,
+        hostConfirmed: hostConfirmed);
+    if (outcome == CaseOutcome.attendanceCorrected) {
+      repo.resolveAttendanceCorrection(resolved, correctedAttendance);
+    } else {
+      repo.saveCase(resolved);
+    }
     _notify(c.reporterId, NotificationKind.supportUpdate,
         'Your report was reviewed',
         outcome == CaseOutcome.noAction

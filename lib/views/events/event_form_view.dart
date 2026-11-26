@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+
 import '../../core/carps_icons.dart';
 
 import '../../controllers/app_controller.dart';
@@ -42,6 +43,8 @@ class _EventFormViewState extends State<EventFormView> {
   @override
   void initState() {
     super.initState();
+    _title.addListener(_refreshPreview);
+    _venue.addListener(_refreshPreview);
     final svc = context.appRead.service;
     final now = svc.now;
     _start = DateTime(now.year, now.month, now.day + 3, 18);
@@ -67,6 +70,8 @@ class _EventFormViewState extends State<EventFormView> {
 
   @override
   void dispose() {
+    _title.removeListener(_refreshPreview);
+    _venue.removeListener(_refreshPreview);
     _title.dispose();
     _venue.dispose();
     _description.dispose();
@@ -74,16 +79,21 @@ class _EventFormViewState extends State<EventFormView> {
     super.dispose();
   }
 
+  void _refreshPreview() {
+    if (mounted) setState(() {});
+  }
+
   Future<void> _submit() async {
     final app = context.appRead;
     final svc = app.service;
     final me = app.me!;
     final problem = svc.validateEventDraft(
-        title: _title.text,
-        venue: _venue.text,
-        start: _start,
-        end: _end,
-        isNew: _editing == null);
+      title: _title.text,
+      venue: _venue.text,
+      start: _start,
+      end: _end,
+      isNew: _editing == null,
+    );
     if (problem != null) {
       setState(() {
         _error = problem;
@@ -155,92 +165,286 @@ class _EventFormViewState extends State<EventFormView> {
     final me = app.me!;
     final c = context.carps;
     if (!me.hostingEnabled) {
-      return CarpsPage(title: 'Create event', children: [
-        EmptyState(
-          title: 'Turn on hosting first',
-          message:
-              'Attendees can activate hosting tools on this same account. No second account needed.',
-          actionLabel: 'Enable hosting',
-          onAction: () => context.pushReplacement('/builder-setup'),
-        ),
-      ]);
+      return CarpsPage(
+        title: 'Create event',
+        children: [
+          EmptyState(
+            title: 'Turn on hosting first',
+            message: 'Attendees can activate hosting tools on this same account. No second account needed.',
+            actionLabel: 'Enable hosting',
+            onAction: () => context.pushReplacement('/builder-setup'),
+          ),
+        ],
+      );
     }
     if (_editing != null && !_editing!.isHostingTeam(me.id)) {
-      return const CarpsPage(title: 'Edit event', children: [
-        EmptyState(
+      return const CarpsPage(
+        title: 'Edit event',
+        children: [
+          EmptyState(
             title: 'Not your event',
-            message: 'Only the hosting team can edit this listing.'),
-      ]);
+            message: 'Only the hosting team can edit this listing.',
+          ),
+        ],
+      );
     }
-    return Scaffold(
-      body: SafeArea(
-        bottom: false,
-        child: Column(children: [
-          BackHeader(title: _editing == null ? 'Create event' : 'Edit event'),
-          Expanded(
-            child: ListView(
-              padding: EdgeInsets.zero,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final desktop = constraints.maxWidth >= 780;
+        return Scaffold(
+          body: SafeArea(
+            bottom: false,
+            child: Column(
               children: [
-                Center(
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 720),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Padding(
-                          padding: const EdgeInsets.fromLTRB(16, 4, 16, 20),
-                          child: SegmentedTabs(
-                            labels: const ['Details', 'Time', 'Guests'],
-                            selected: _tab,
-                            onChanged: (i) => setState(() => _tab = i),
+                BackHeader(
+                  title: _editing == null ? 'Create event' : 'Edit event',
+                ),
+                Expanded(
+                  child: ListView(
+                    padding: EdgeInsets.zero,
+                    children: [
+                      Center(
+                        child: ConstrainedBox(
+                          constraints: BoxConstraints(
+                            maxWidth: desktop ? 1240 : 720,
+                          ),
+                          child: Padding(
+                            padding: EdgeInsets.symmetric(
+                              horizontal: desktop ? 24 : 0,
+                            ),
+                            child: desktop
+                                ? Row(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.stretch,
+                                          children: [
+                                            _tabsBar(desktop: desktop),
+                                            DarkSheet(
+                                              fill: true,
+                                              padding:
+                                                  const EdgeInsets.fromLTRB(
+                                                    28,
+                                                    28,
+                                                    28,
+                                                    32,
+                                                  ),
+                                              child: _activeTab(context),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                      const SizedBox(width: 24),
+                                      SizedBox(
+                                        width: 300,
+                                        child: _draftPreview(context),
+                                      ),
+                                    ],
+                                  )
+                                : Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.stretch,
+                                    children: [
+                                      _tabsBar(desktop: desktop),
+                                      DarkSheet(
+                                        fill: true,
+                                        child: _activeTab(context),
+                                      ),
+                                    ],
+                                  ),
                           ),
                         ),
-                        DarkSheet(
-                          fill: true,
-                          child: switch (_tab) {
-                            0 => _details(context),
-                            1 => _time(context),
-                            _ => _guestsTab(context),
-                          },
-                        ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
                 ),
               ],
             ),
           ),
-        ]),
-      ),
-      bottomNavigationBar: BottomActionBar(
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          if (_error != null)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: Row(children: [
-                Icon(CarpsIcons.warningCircle, color: c.error, size: 16),
-                const SizedBox(width: 6),
-                Expanded(
-                    child: Text(_error!,
-                        style: TextStyle(color: c.error, fontSize: 13))),
-              ]),
-            ),
-          Row(children: [
-            StatusChip(_visibility == EventVisibility.private
-                ? StatusKind.private
-                : StatusKind.public),
-            const SizedBox(width: 12),
-            Expanded(
-              child: CarpsButton(
-                label: _editing == null ? 'Publish' : 'Save changes',
-                trailingArrow: true,
-                loading: _busy,
-                onPressed: _submit,
+          bottomNavigationBar: desktop
+              ? null
+              : BottomActionBar(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (_error != null)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 8),
+                          child: Row(
+                            children: [
+                              Icon(
+                                CarpsIcons.warningCircle,
+                                color: c.error,
+                                size: 16,
+                              ),
+                              const SizedBox(width: 6),
+                              Expanded(
+                                child: Text(
+                                  _error!,
+                                  style: TextStyle(
+                                    color: c.error,
+                                    fontSize: 13,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      Row(
+                        children: [
+                          StatusChip(
+                            _visibility == EventVisibility.private
+                                ? StatusKind.private
+                                : StatusKind.public,
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: CarpsButton(
+                              label: _editing == null
+                                  ? 'Publish'
+                                  : 'Save changes',
+                              trailingArrow: true,
+                              loading: _busy,
+                              onPressed: _submit,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+        );
+      },
+    );
+  }
+
+  Widget _tabsBar({required bool desktop}) => Padding(
+    padding: EdgeInsets.fromLTRB(16, desktop ? 16 : 4, 16, 20),
+    child: SegmentedTabs(
+      labels: const ['Details', 'Time', 'Guests'],
+      selected: _tab,
+      onChanged: (i) => setState(() => _tab = i),
+    ),
+  );
+
+  Widget _activeTab(BuildContext context) => switch (_tab) {
+    0 => _details(context),
+    1 => _time(context),
+    _ => _guestsTab(context),
+  };
+
+  Widget _draftPreview(BuildContext context) {
+    final c = context.carps;
+    final title = _title.text.trim();
+    final venue = _venue.text.trim();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const CaptionLabel('Listing preview'),
+        const SizedBox(height: 10),
+        SurfaceCard(
+          padding: EdgeInsets.zero,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(18),
+                child: AspectRatio(
+                  aspectRatio: 16 / 9,
+                  child: _cover == null
+                      ? Container(
+                          color: c.inverseRaised,
+                          child: Icon(
+                            topicIcon(_topic),
+                            size: 40,
+                            color: c.textSecondary,
+                          ),
+                        )
+                      : Image.asset(_cover!, fit: BoxFit.cover),
+                ),
               ),
-            ),
-          ]),
-        ]),
-      ),
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    TintPill(_topic),
+                    const SizedBox(height: 10),
+                    Text(
+                      title.isEmpty ? 'Your event title' : title,
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Icon(
+                          CarpsIcons.calendarBlank,
+                          size: 18,
+                          color: c.accentFill,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(child: Text(dateTime(_start))),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Icon(CarpsIcons.mapPin, size: 18, color: c.accentFill),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            venue.isEmpty ? 'Venue to be added' : venue,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    StatusChip(
+                      _visibility == EventVisibility.private
+                          ? StatusKind.private
+                          : StatusKind.public,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+        SurfaceCard(
+          color: c.muted,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Ready when you are',
+                style: Theme.of(context).textTheme.titleSmall,
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Your listing and invitations go live when you publish.',
+                style: TextStyle(color: c.textSecondary, fontSize: 13),
+              ),
+            ],
+          ),
+        ),
+        if (_error != null) ...[
+          const SizedBox(height: 12),
+          Text(_error!, style: TextStyle(color: c.error, fontSize: 13)),
+        ],
+        const SizedBox(height: 16),
+        CarpsButton(
+          label: _editing == null ? 'Publish event' : 'Save changes',
+          trailingArrow: true,
+          loading: _busy,
+          onPressed: _submit,
+        ),
+      ],
     );
   }
 
@@ -253,30 +457,40 @@ class _EventFormViewState extends State<EventFormView> {
           borderRadius: BorderRadius.circular(20),
           child: AspectRatio(
             aspectRatio: 16 / 9,
-            child: Stack(fit: StackFit.expand, children: [
-              if (_cover != null)
-                Image.asset(_cover!, fit: BoxFit.cover)
-              else
-                Container(
-                  color: d.inverseRaised,
-                  child: Icon(topicIcon(_topic), size: 40, color: d.textSecondary),
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                if (_cover != null)
+                  Image.asset(_cover!, fit: BoxFit.cover)
+                else
+                  Container(
+                    color: d.inverseRaised,
+                    child: Icon(
+                      topicIcon(_topic),
+                      size: 40,
+                      color: d.textSecondary,
+                    ),
+                  ),
+                Positioned(
+                  right: 12,
+                  bottom: 12,
+                  child: CarpsButton(
+                    label: _cover == null ? 'Add cover' : 'Change cover',
+                    icon: CarpsIcons.camera,
+                    kind: CarpsButtonKind.inverse,
+                    height: 38,
+                    expand: false,
+                    onPressed: () async {
+                      final p = await pickSamplePhoto(
+                        context,
+                        options: DemoPhotos.all,
+                      );
+                      if (p != null) setState(() => _cover = p);
+                    },
+                  ),
                 ),
-              Positioned(
-                right: 12,
-                bottom: 12,
-                child: CarpsButton(
-                  label: _cover == null ? 'Add cover' : 'Change cover',
-                  icon: CarpsIcons.camera,
-                  kind: CarpsButtonKind.inverse,
-                  height: 38,
-                  expand: false,
-                  onPressed: () async {
-                    final p = await pickSamplePhoto(context, options: DemoPhotos.all);
-                    if (p != null) setState(() => _cover = p);
-                  },
-                ),
-              ),
-            ]),
+              ],
+            ),
           ),
         ),
         const SizedBox(height: 20),
@@ -284,20 +498,26 @@ class _EventFormViewState extends State<EventFormView> {
         const SizedBox(height: 8),
         TextField(
           controller: _title,
-          decoration:
-              const InputDecoration(hintText: 'e.g. Sunday pickleball open play'),
+          decoration: const InputDecoration(
+            hintText: 'e.g. Sunday pickleball open play',
+          ),
         ),
         const SizedBox(height: 16),
         const CaptionLabel('Topic'),
         const SizedBox(height: 8),
-        Wrap(spacing: 8, runSpacing: 8, children: [
-          for (final t in kTopics)
-            SelectChip(
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            for (final t in kTopics)
+              SelectChip(
                 label: t,
                 selected: _topic == t,
                 icon: topicIcon(t),
-                onTap: () => setState(() => _topic = t)),
-        ]),
+                onTap: () => setState(() => _topic = t),
+              ),
+          ],
+        ),
         const SizedBox(height: 16),
         const CaptionLabel('Venue'),
         const SizedBox(height: 8),
@@ -325,7 +545,8 @@ class _EventFormViewState extends State<EventFormView> {
           controller: _description,
           maxLines: 4,
           decoration: const InputDecoration(
-              hintText: 'What should guests expect? Skill level, what to bring…'),
+            hintText: 'What should guests expect? Skill level, what to bring…',
+          ),
         ),
         const SizedBox(height: 16),
         const CaptionLabel('Capacity (optional)'),
@@ -341,21 +562,27 @@ class _EventFormViewState extends State<EventFormView> {
         SegmentedTabs(
           labels: const ['Public', 'Private'],
           selected: _visibility == EventVisibility.public ? 0 : 1,
-          onChanged: (i) => setState(() => _visibility =
-              i == 0 ? EventVisibility.public : EventVisibility.private),
+          onChanged: (i) => setState(
+            () => _visibility = i == 0
+                ? EventVisibility.public
+                : EventVisibility.private,
+          ),
         ),
         const SizedBox(height: 8),
         Text(
-            _visibility == EventVisibility.public
-                ? 'Anyone can find this listing and request to join. Signed-out visitors can view it.'
-                : 'Hidden from discovery and profiles. Only people you invite can see it and request to join.',
-            style: TextStyle(fontSize: 12, color: d.textSecondary)),
+          _visibility == EventVisibility.public
+              ? 'Anyone can find this listing and request to join. Signed-out visitors can view it.'
+              : 'Hidden from discovery and profiles. Only people you invite can see it and request to join.',
+          style: TextStyle(fontSize: 12, color: d.textSecondary),
+        ),
         const SizedBox(height: 12),
         SwitchListTile(
           contentPadding: EdgeInsets.zero,
           title: const Text('Feature on my profile'),
-          subtitle: Text('Shows under Profile → Events. Listings are not posts.',
-              style: TextStyle(fontSize: 12, color: d.textSecondary)),
+          subtitle: Text(
+            'Shows under Profile → Events. Listings are not posts.',
+            style: TextStyle(fontSize: 12, color: d.textSecondary),
+          ),
           value: _featured,
           onChanged: (v) => setState(() => _featured = v),
         ),
@@ -377,9 +604,17 @@ class _EventFormViewState extends State<EventFormView> {
       );
       if (date == null || !context.mounted) return;
       final time = await showTimePicker(
-          context: context, initialTime: TimeOfDay.fromDateTime(base));
+        context: context,
+        initialTime: TimeOfDay.fromDateTime(base),
+      );
       if (time == null) return;
-      final dt = DateTime(date.year, date.month, date.day, time.hour, time.minute);
+      final dt = DateTime(
+        date.year,
+        date.month,
+        date.day,
+        time.hour,
+        time.minute,
+      );
       setState(() {
         if (isStart) {
           final dur = _end.difference(_start);
@@ -392,79 +627,105 @@ class _EventFormViewState extends State<EventFormView> {
     }
 
     Widget wheel(bool isStart) => Container(
-          height: 180,
-          decoration: BoxDecoration(
-              color: d.inverseRaised, borderRadius: BorderRadius.circular(20)),
-          child: CupertinoTheme(
-            data: const CupertinoThemeData(
-              brightness: Brightness.dark,
-              textTheme: CupertinoTextThemeData(
-                dateTimePickerTextStyle: TextStyle(
-                    color: Colors.white, fontSize: 20, fontFamily: 'Inter'),
-              ),
-            ),
-            child: CupertinoDatePicker(
-              key: ValueKey('wheel-$isStart'),
-              mode: isStart
-                  ? CupertinoDatePickerMode.dateAndTime
-                  : CupertinoDatePickerMode.time,
-              initialDateTime: isStart ? _start : _end,
-              minuteInterval: 1,
-              onDateTimeChanged: (v) => setState(() {
-                if (isStart) {
-                  final dur = _end.difference(_start);
-                  _start = v;
-                  _end = v.add(dur);
-                } else {
-                  _end = DateTime(
-                      _start.year, _start.month, _start.day, v.hour, v.minute);
-                }
-              }),
+      height: 180,
+      decoration: BoxDecoration(
+        color: d.inverseRaised,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: CupertinoTheme(
+        data: const CupertinoThemeData(
+          brightness: Brightness.dark,
+          textTheme: CupertinoTextThemeData(
+            dateTimePickerTextStyle: TextStyle(
+              color: Colors.white,
+              fontSize: 20,
+              fontFamily: 'Inter',
             ),
           ),
-        );
+        ),
+        child: CupertinoDatePicker(
+          key: ValueKey('wheel-$isStart'),
+          mode: isStart
+              ? CupertinoDatePickerMode.dateAndTime
+              : CupertinoDatePickerMode.time,
+          initialDateTime: isStart ? _start : _end,
+          minuteInterval: 1,
+          onDateTimeChanged: (v) => setState(() {
+            if (isStart) {
+              final dur = _end.difference(_start);
+              _start = v;
+              _end = v.add(dur);
+            } else {
+              _end = DateTime(
+                _start.year,
+                _start.month,
+                _start.day,
+                v.hour,
+                v.minute,
+              );
+            }
+          }),
+        ),
+      ),
+    );
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Row(children: [
-          const CaptionLabel('Starts'),
-          const Spacer(),
-          Text(dateTime(_start),
+        Row(
+          children: [
+            const CaptionLabel('Starts'),
+            const Spacer(),
+            Text(
+              dateTime(_start),
               style: TextStyle(
-                  color: d.accentOnInverse, fontWeight: FontWeight.w600)),
-        ]),
+                color: d.accentOnInverse,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
         const SizedBox(height: 8),
         if (wide)
           CarpsButton(
-              label: dateTime(_start),
-              icon: CarpsIcons.calendarBlank,
-              kind: CarpsButtonKind.muted,
-              onPressed: () => pick(true))
+            label: dateTime(_start),
+            icon: CarpsIcons.calendarBlank,
+            kind: CarpsButtonKind.muted,
+            onPressed: () => pick(true),
+          )
         else
           wheel(true),
         const SizedBox(height: 20),
-        Row(children: [
-          const CaptionLabel('Ends'),
-          const Spacer(),
-          Text(dateTime(_end),
+        Row(
+          children: [
+            const CaptionLabel('Ends'),
+            const Spacer(),
+            Text(
+              dateTime(_end),
               style: TextStyle(
-                  color: d.accentOnInverse, fontWeight: FontWeight.w600)),
-        ]),
+                color: d.accentOnInverse,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
         const SizedBox(height: 8),
         if (wide)
           CarpsButton(
-              label: dateTime(_end),
-              icon: CarpsIcons.clock,
-              kind: CarpsButtonKind.muted,
-              onPressed: () => pick(false))
+            label: dateTime(_end),
+            icon: CarpsIcons.clock,
+            kind: CarpsButtonKind.muted,
+            onPressed: () => pick(false),
+          )
         else
           wheel(false),
         if (!_end.isAfter(_start))
           Padding(
             padding: const EdgeInsets.only(top: 8),
-            child: Text('End time must be after the start time.',
-                style: TextStyle(color: d.error, fontSize: 12)),
+            child: Text(
+              'End time must be after the start time.',
+              style: TextStyle(color: d.error, fontSize: 12),
+            ),
           ),
       ],
     );
@@ -476,7 +737,9 @@ class _EventFormViewState extends State<EventFormView> {
     final me = app.me!;
     final d = context.carps;
     final builders = svc.repo.users
-        .where((u) => u.hostingEnabled && u.id != me.id && u.displayName.isNotEmpty)
+        .where(
+          (u) => u.hostingEnabled && u.id != me.id && u.displayName.isNotEmpty,
+        )
         .toList();
     final people = svc.repo.users
         .where((u) => u.id != me.id && u.displayName.isNotEmpty && !u.isAdmin)
@@ -494,8 +757,9 @@ class _EventFormViewState extends State<EventFormView> {
         Text('Co-hosts', style: Theme.of(context).textTheme.titleLarge),
         const SizedBox(height: 4),
         Text(
-            'Builders you invite get hosting tools (approve requests, scan passes) only after they accept.',
-            style: TextStyle(fontSize: 12, color: d.textSecondary)),
+          'Builders you invite get hosting tools (approve requests, scan passes) only after they accept.',
+          style: TextStyle(fontSize: 12, color: d.textSecondary),
+        ),
         const SizedBox(height: 12),
         for (final b in builders)
           _PersonCheck(
@@ -512,31 +776,36 @@ class _EventFormViewState extends State<EventFormView> {
             }),
           ),
         const SizedBox(height: 24),
-        Text('Private guest invitations',
-            style: Theme.of(context).textTheme.titleLarge),
+        Text(
+          'Private guest invitations',
+          style: Theme.of(context).textTheme.titleLarge,
+        ),
         const SizedBox(height: 4),
         Text(
-            _visibility == EventVisibility.private
-                ? 'Invite attendees or other builders as GUESTS. An invitation lets them see the listing and request to join. It doesn\'t grant host privileges or guarantee admission.'
-                : 'Public events don\'t need invitations, but you can still nudge people. They still request to join.',
-            style: TextStyle(fontSize: 12, color: d.textSecondary)),
+          _visibility == EventVisibility.private
+              ? 'Invite attendees or other builders as GUESTS. An invitation lets them see the listing and request to join. It doesn\'t grant host privileges or guarantee admission.'
+              : 'Public events don\'t need invitations, but you can still nudge people. They still request to join.',
+          style: TextStyle(fontSize: 12, color: d.textSecondary),
+        ),
         const SizedBox(height: 12),
         for (final p in people)
           _PersonCheck(
             user: p,
-            subtitle:
-                p.hostingEnabled ? 'Builder · invited as guest only' : p.handle,
+            subtitle: p.hostingEnabled
+                ? 'Builder · invited as guest only'
+                : p.handle,
             checked: _guests.contains(p.id) || alreadyGuest(p.id),
             locked: alreadyGuest(p.id),
             lockedLabel: 'Invited',
             enabled: !_coHosts.contains(p.id),
-            onChanged: (v) => setState(
-                () => v ? _guests.add(p.id) : _guests.remove(p.id)),
+            onChanged: (v) =>
+                setState(() => v ? _guests.add(p.id) : _guests.remove(p.id)),
           ),
         const SizedBox(height: 8),
         Text(
-            'Invitations are sent when you ${_editing == null ? 'publish' : 'save'}.',
-            style: TextStyle(fontSize: 12, color: d.textSecondary)),
+          'Invitations are sent when you ${_editing == null ? 'publish' : 'save'}.',
+          style: TextStyle(fontSize: 12, color: d.textSecondary),
+        ),
       ],
     );
   }
@@ -572,7 +841,8 @@ class _PersonCheck extends StatelessWidget {
           ? StatusChip(StatusKind.invited, label: lockedLabel)
           : Checkbox(
               value: checked,
-              onChanged: enabled ? (v) => onChanged(v ?? false) : null),
+              onChanged: enabled ? (v) => onChanged(v ?? false) : null,
+            ),
       onTap: locked || !enabled ? null : () => onChanged(!checked),
     );
   }

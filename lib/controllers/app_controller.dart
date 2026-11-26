@@ -3,19 +3,23 @@ import 'package:flutter/widgets.dart';
 import '../models/carps_models.dart';
 import '../repositories/carps_repository.dart';
 import '../services/carps_service.dart';
+import '../services/firebase_auth_gateway.dart';
 
 /// UI-facing application state: who is signed in, plus demo switches.
 ///
 /// It forwards repository changes so any widget that watches it rebuilds when
 /// shared state (registrations, passes, posts…) changes.
 class AppController extends ChangeNotifier {
-  AppController(this.repo, {Clock? clock})
-      : service = CarpsService(repo, clock: clock) {
+  AppController(this.repo,
+      {Clock? clock, this.authGateway, String? initialUserId})
+      : service = CarpsService(repo, clock: clock),
+        _currentUserId = initialUserId {
     repo.addListener(notifyListeners);
   }
 
   final CarpsRepository repo;
   final CarpsService service;
+  final FirebaseAuthGateway? authGateway;
 
   String? _currentUserId;
   String? get currentUserId => _currentUserId;
@@ -37,7 +41,8 @@ class AppController extends ChangeNotifier {
     notifyListeners();
   }
 
-  void signOut() {
+  Future<void> signOut() async {
+    await authGateway?.signOut();
     _currentUserId = null;
     notifyListeners();
   }

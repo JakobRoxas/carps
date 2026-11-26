@@ -23,9 +23,8 @@ const _tabs = [
       CarpsIcons.gearSixFill),
 ];
 
-/// Home · Feed · ＋ Create event · Profile · Settings.
-/// Compact (<600): bottom nav with a raised orange ＋.
-/// Medium/Expanded: navigation rail; ＋ becomes a "Create event" pill.
+/// Phones show bottom nav on the main sections; desktop keeps a rail across
+/// app pages, with Explore and a persistent Create event action.
 class AppShell extends StatelessWidget {
   const AppShell({super.key, required this.location, required this.child});
   final String location;
@@ -36,6 +35,7 @@ class AppShell extends StatelessWidget {
     final width = MediaQuery.sizeOf(context).width;
     final body = SafeArea(bottom: false, child: child);
     if (width < 600) {
+      if (!_tabs.any((tab) => location.startsWith(tab.path))) return child;
       return Scaffold(
         body: body,
         bottomNavigationBar: _BottomNav(location: location),
@@ -172,7 +172,17 @@ class _Rail extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = context.carps;
-    final selected = _tabs.indexWhere((t) => location.startsWith(t.path));
+    final tabs = [
+      _tabs[0],
+      const _Tab(
+        '/search',
+        'Explore',
+        CarpsIcons.magnifyingGlass,
+        CarpsIcons.magnifyingGlass,
+      ),
+      ..._tabs.skip(1),
+    ];
+    final selected = tabs.indexWhere((t) => location.startsWith(t.path));
     return Container(
       color: c.canvas,
       width: expanded ? 220 : 88,
@@ -217,7 +227,7 @@ class _Rail extends StatelessWidget {
                     ),
             ),
             const SizedBox(height: 16),
-            for (var i = 0; i < _tabs.length; i++)
+            for (var i = 0; i < tabs.length; i++)
               Padding(
                 padding: EdgeInsets.symmetric(
                     horizontal: expanded ? 12 : 8, vertical: 2),
@@ -229,7 +239,7 @@ class _Rail extends StatelessWidget {
                     borderRadius: BorderRadius.circular(16),
                     child: InkWell(
                       borderRadius: BorderRadius.circular(16),
-                      onTap: () => context.go(_tabs[i].path),
+                      onTap: () => context.go(tabs[i].path),
                       child: Padding(
                         padding: const EdgeInsets.symmetric(
                             horizontal: 12, vertical: 12),
@@ -237,13 +247,13 @@ class _Rail extends StatelessWidget {
                             ? Row(children: [
                                 Icon(
                                     i == selected
-                                        ? _tabs[i].activeIcon
-                                        : _tabs[i].icon,
+                                        ? tabs[i].activeIcon
+                                        : tabs[i].icon,
                                     color: i == selected
                                         ? c.textPrimary
                                         : c.textSecondary),
                                 const SizedBox(width: 12),
-                                Text(_tabs[i].label,
+                                Text(tabs[i].label,
                                     style: TextStyle(
                                         fontWeight: FontWeight.w600,
                                         color: i == selected
@@ -253,13 +263,13 @@ class _Rail extends StatelessWidget {
                             : Column(children: [
                                 Icon(
                                     i == selected
-                                        ? _tabs[i].activeIcon
-                                        : _tabs[i].icon,
+                                        ? tabs[i].activeIcon
+                                        : tabs[i].icon,
                                     color: i == selected
                                         ? c.textPrimary
                                         : c.textSecondary),
                                 const SizedBox(height: 4),
-                                Text(_tabs[i].label,
+                                Text(tabs[i].label,
                                     style: TextStyle(
                                         fontSize: 11,
                                         color: i == selected

@@ -4,6 +4,11 @@
 *.pyc
 *.swp
 .DS_Store
+.firebase/
+.env
+.env.*
+!.env.example
+*service-account*.json
 .atom/
 .build/
 .buildlog/

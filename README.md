@@ -1,9 +1,9 @@
 Carps is a cross-platform event discovery and community app for attendees,
 organizers, and community builders.
 
-As of 11/19/2026 we don't have a database yet so for testing and development
-we will be working with data that is stored in memory. So all of this is in
-'lib/repositories'.
+The app defaults to seeded in-memory data for demos and tests. An opt-in Firebase
+backend uses Firebase Authentication, callable Cloud Functions, and Cloud
+Firestore.
 
 This README is the team guide for building the project. Work is divided into
 three areas: **frontend**, **backend**, and **database**.
@@ -18,10 +18,10 @@ Basically right now I'm going to delimit our scope to:
 - Group hubs with follow/unfollow behavior
 - Profile, interests, and RSVP entry points
 
-Yung mga nasa 'Screens' section I think it's good to have those screens
-just for the sake of having them done, but things like authentication
-we'll just implement later on (Authentication, persistence, media uploads,
-notifications, analytics, and moderation). 
+The login, sign-up, and password-reset screens use Firebase Authentication
+when the Firebase backend is enabled; the default demo mode still uses mock
+accounts. Media uploads, push notifications, analytics, and moderation
+workflows remain future work.
 
 ## Screens
 
@@ -71,13 +71,20 @@ User experience and Flutter presentation layer.
 
 ### Backend
 
-Si jakob lang toh #onemanarmy
+The Firebase callable functions in `functions/` are the trusted server
+boundary. Keep authorization and state-changing product rules on the server;
+the Flutter service checks are for user experience and are not a security
+boundary.
 
 **Primary responsibilities**
 
-- Kumbaga pre ung API haha.
-- Ung nasa api-test-client folder that's just for me to test the api i'm working on
-  kase mas trip ko gumagamit ng html for making the temporary UI.
+- Maintain callable functions that validate authenticated users and enforce
+  event, registration, pass, attendance, post, review, and support rules.
+- Keep Firestore client access denied by default; clients must go through the
+  callable functions.
+- Add tests for allowed and rejected operations, especially private-event
+  access and attendance/pass transitions.
+- Deploy functions and rules together when a change depends on both.
 
 ### Database
 
@@ -106,8 +113,8 @@ Si jakob lang toh #onemanarmy
 
 The app runs fully on an in-memory mock (`lib/repositories/mock_carps_repository.dart`)
 behind the `CarpsRepository` interface, with all product rules in
-`lib/services/carps_service.dart`. Swap the repository for Firebase later; widgets
-and rules don't change.
+`lib/services/carps_service.dart`. Firebase is opt-in; the mock remains the
+default so screenshots and tests don't require a network or Firebase account.
 
 ```bash
 flutter run -d chrome          # responsive web
@@ -124,6 +131,87 @@ no-show), `marcolim` (gets declined), `beavalenzuela` (outsider who follows Mika
 The older `event_model`, `user_model`, `group_model`, `social_model`, `event_repository`,
 `group_repository` and `*_controller` files from the backend smoke test are kept but
 unused: they treat an RSVP as attendance, which the current product definition forbids.
+
+## Firebase backend
+
+The Firebase implementation keeps the existing view/controller interface. The
+Flutter app caches domain models locally; reads and writes go through the
+callable functions. Server-side validation remains authoritative. Failed
+background writes are shown in the app rather than silently discarded.
+
+### Run against the local emulators
+
+Install the Firebase CLI and Functions dependencies once:
+
+```bash
+npm install -g firebase-tools
+firebase login
+npm --prefix functions install
+```
+
+Start the Auth, Firestore, and Functions emulators from the repository root:
+
+```bash
+firebase emulators:start --project demo-carps --only auth,firestore,functions
+```
+
+In another terminal, launch the Flutter web app against those emulators:
+
+```bash
+flutter run -d chrome \
+  --dart-define=CARPS_USE_FIREBASE=true \
+  --dart-define=CARPS_USE_FIREBASE_EMULATORS=true
+```
+
+For Android emulators, the app uses `10.0.2.2` to reach the host machine. iOS
+simulators and web use `localhost`.
+
+### Connect a Firebase project
+
+1. Create a Firebase project and a Cloud Firestore database. Choose a database
+   region before creating it; `asia-southeast1` (Singapore) is the configured
+   Cloud Functions region.
+2. Enable **Email/Password** and **Google** providers in Firebase
+   Authentication. Configure the OAuth client for Google sign-in.
+3. Register a web, Android, and/or iOS app in Firebase Console. Pass its public
+   SDK settings as the `FIREBASE_*` Dart defines used by
+   `lib/firebase/firebase_runtime.dart` (use the platform-specific app ID for
+   each build). Firebase client API keys are not authorization; do not put
+   service-account keys or other secrets in the app.
+4. Deploy the server functions and deny-by-default Firestore rules:
+
+   ```bash
+   firebase deploy --project YOUR_PROJECT_ID --only functions,firestore:rules
+   ```
+
+5. Run the app with `CARPS_USE_FIREBASE=true` and the matching Firebase app
+   settings. Do not set `CARPS_USE_FIREBASE_EMULATORS=true` when using the live
+   project.
+
+New accounts are regular users. The app cannot grant admin access: provision an
+admin profile through a trusted, auditable Admin SDK process after the account
+has been created. Never expose service-account credentials or let a client set
+the `isAdmin` field. At least one admin profile is needed to assign and resolve
+support cases.
+
+For example, a web build uses the app's public web configuration:
+
+```bash
+flutter run -d chrome \
+  --dart-define=CARPS_USE_FIREBASE=true \
+  --dart-define=FIREBASE_API_KEY=YOUR_WEB_API_KEY \
+  --dart-define=FIREBASE_WEB_APP_ID=YOUR_WEB_APP_ID \
+  --dart-define=FIREBASE_MESSAGING_SENDER_ID=YOUR_SENDER_ID \
+  --dart-define=FIREBASE_PROJECT_ID=YOUR_PROJECT_ID \
+  --dart-define=FIREBASE_AUTH_DOMAIN=YOUR_PROJECT_ID.firebaseapp.com
+```
+
+For Android or iOS, use `FIREBASE_ANDROID_APP_ID` or `FIREBASE_IOS_APP_ID`
+instead of the web app ID. Additional platform client IDs may be supplied for
+Google sign-in.
+
+Deploying Cloud Functions may require enabling the Firebase Blaze billing
+plan. Test changes with the local emulators before deploying.
 
 ## Local development
 
@@ -147,7 +235,7 @@ dart format .
 flutter analyze
 ```
 
-The app should remain runnable with mock data while backend work is in
-progress. Do not commit local credentials, service-account files, or
-machine-specific configuration. Kung may kinemerut kayo, lagay niyo
-nalang sa .env then make sure nasa .gitignore
+The app should remain runnable with mock data while backend work is in progress.
+Do not commit service-account files, passwords, or machine-specific
+configuration. Public Firebase client settings are not secrets; authorization
+must come from Authentication and server-side validation.

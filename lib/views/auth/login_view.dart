@@ -1,5 +1,7 @@
 import 'dart:math' as math;
 
+import 'package:cloud_functions/cloud_functions.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
@@ -10,6 +12,7 @@ import '../../core/theme/carps_colors.dart';
 import '../../core/widgets/carps_widgets.dart';
 import '../../models/carps_models.dart';
 import '../../services/carps_service.dart';
+import '../../services/firebase_auth_gateway.dart';
 
 /// Spin the ring once on entry; the wordmark and form stay still.
 class _LoginLogo extends StatelessWidget {
@@ -63,15 +66,30 @@ class _LoginViewState extends State<LoginView> {
     setState(() => _error = null);
     if (!_form.currentState!.validate()) return;
     setState(() => _busy = true);
-    await Future<void>.delayed(const Duration(milliseconds: 300));
-    if (!mounted) return;
     final app = context.appRead;
+    if (app.authGateway == null) {
+      await Future<void>.delayed(const Duration(milliseconds: 300));
+    }
+    if (!mounted) return;
     try {
-      final user = _signUp
-          ? app.service.signUp(_email.text, _password.text)
-          : app.service.logIn(_email.text, _password.text);
+      final user = app.authGateway != null
+          ? (_signUp
+              ? await app.authGateway!
+                  .signUpWithEmail(_email.text, _password.text)
+              : await app.authGateway!
+                  .signInWithEmail(_email.text, _password.text))
+          : (_signUp
+              ? app.service.signUp(_email.text, _password.text)
+              : app.service.logIn(_email.text, _password.text));
       app.signIn(user.id); // router redirects to onboarding or Home
     } on RuleViolation catch (e) {
+      setState(() => _error = e.message);
+    } on FirebaseAuthException catch (e) {
+      setState(() => _error = firebaseAuthErrorMessage(e));
+    } on FirebaseFunctionsException catch (e) {
+      setState(() => _error =
+          e.message ?? 'Could not load your CARPS account. Please try again.');
+    } on StateError catch (e) {
       setState(() => _error = e.message);
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -80,6 +98,30 @@ class _LoginViewState extends State<LoginView> {
 
   Future<void> _google() async {
     final app = context.appRead;
+    if (app.authGateway case final gateway?) {
+      setState(() {
+        _error = null;
+        _busy = true;
+      });
+      try {
+        final user = await gateway.signInWithGoogle();
+        app.signIn(user.id);
+      } on FirebaseAuthException catch (e) {
+        if (mounted) setState(() => _error = firebaseAuthErrorMessage(e));
+      } on FirebaseFunctionsException catch (e) {
+        if (mounted) {
+          setState(() => _error = e.message ??
+              'Could not load your CARPS account. Please try again.');
+        }
+      } on RuleViolation catch (e) {
+        if (mounted) setState(() => _error = e.message);
+      } on StateError catch (e) {
+        if (mounted) setState(() => _error = e.message);
+      } finally {
+        if (mounted) setState(() => _busy = false);
+      }
+      return;
+    }
     final picked = await showModalBottomSheet<String>(
       context: context,
       builder: (ctx) => _GoogleChooser(users: app.repo.users),
@@ -97,6 +139,7 @@ class _LoginViewState extends State<LoginView> {
   @override
   Widget build(BuildContext context) {
     final c = context.carps;
+    final app = context.app;
     return Scaffold(
       backgroundColor: c.page,
       body: SingleChildScrollView(
@@ -169,7 +212,8 @@ class _LoginViewState extends State<LoginView> {
                                             fontWeight: FontWeight.w500,
                                             color: Colors.white)),
                                     const SizedBox(width: 8),
-                                    const SimulatedTag(),
+                                    if (app.authGateway == null)
+                                      const SimulatedTag(),
                                   ],
                                 ),
                               ),
