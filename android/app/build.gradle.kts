@@ -7,7 +7,8 @@ plugins {
 android {
     namespace = "com.example.carps"
     compileSdk = flutter.compileSdkVersion
-    ndkVersion = flutter.ndkVersion
+    // Local: NDK 28.2 install on this machine is incomplete; use installed NDK 30.
+    ndkVersion = "30.0.15729638"
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
