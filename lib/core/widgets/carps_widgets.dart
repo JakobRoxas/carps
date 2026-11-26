@@ -581,6 +581,29 @@ class DarkSheet extends StatelessWidget {
   }
 }
 
+/// Scroll body for pages that end in a [DarkSheet]. The black sheet color is
+/// extended to the bottom of the viewport, so short content (wide web
+/// windows) and overscroll never expose white below the sheet.
+class SheetScroll extends StatelessWidget {
+  const SheetScroll({super.key, required this.children});
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    return CustomScrollView(
+      physics: const ClampingScrollPhysics(),
+      slivers: [
+        SliverList(delegate: SliverChildListDelegate(children)),
+        SliverFillRemaining(
+          hasScrollBody: false,
+          fillOverscroll: true,
+          child: ColoredBox(color: CarpsColors.light.inverse),
+        ),
+      ],
+    );
+  }
+}
+
 /// The single bright card on a dark sheet (island rule 2: light tokens).
 class HighlightCard extends StatelessWidget {
   const HighlightCard({super.key, required this.child, this.padding = 20});

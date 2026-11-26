@@ -178,9 +178,7 @@ class _EventFormViewState extends State<EventFormView> {
         child: Column(children: [
           BackHeader(title: _editing == null ? 'Create event' : 'Edit event'),
           Expanded(
-            child: ListView(
-              padding: EdgeInsets.zero,
-              children: [
+            child: SheetScroll(children: [
                 Center(
                   child: ConstrainedBox(
                     constraints: const BoxConstraints(maxWidth: 720),

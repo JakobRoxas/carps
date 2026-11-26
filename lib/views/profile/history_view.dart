@@ -44,9 +44,7 @@ class _HistoryViewState extends State<HistoryView> {
         child: Column(children: [
           BackHeader(title: 'Attendance history'),
           Expanded(
-            child: ListView(
-              padding: EdgeInsets.zero,
-              children: [
+            child: SheetScroll(children: [
                 Center(
                   child: ConstrainedBox(
                     constraints: const BoxConstraints(maxWidth: 720),

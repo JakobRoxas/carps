@@ -54,9 +54,7 @@ class _RosterViewState extends State<RosterView> {
         child: Column(children: [
           BackHeader(title: 'Guest roster'),
           Expanded(
-            child: ListView(
-              padding: EdgeInsets.zero,
-              children: [
+            child: SheetScroll(children: [
                 Center(
                   child: ConstrainedBox(
                     constraints: const BoxConstraints(maxWidth: 720),

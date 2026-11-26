@@ -42,9 +42,7 @@ class _AnalyticsViewState extends State<AnalyticsView> {
         child: Column(children: [
           BackHeader(title: 'Host analytics'),
           Expanded(
-            child: ListView(
-              padding: EdgeInsets.zero,
-              children: [
+            child: SheetScroll(children: [
                 Center(
                   child: ConstrainedBox(
                     constraints: const BoxConstraints(maxWidth: 720),
