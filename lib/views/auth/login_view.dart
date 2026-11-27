@@ -139,31 +139,56 @@ class _LoginViewState extends State<LoginView> {
   @override
   Widget build(BuildContext context) {
     final c = context.carps;
+    final d = c;
     final app = context.app;
+    final width = MediaQuery.sizeOf(context).width;
+    final contained = width > 480;
+    final desktop = width > 600;
     return Scaffold(
       backgroundColor: c.page,
       body: SingleChildScrollView(
+        padding: EdgeInsets.symmetric(vertical: desktop ? 32 : 0),
         child: Center(
-          child: ConstrainedBox(
+          child: Container(
             constraints: const BoxConstraints(maxWidth: 480),
+            clipBehavior: Clip.antiAlias,
+            decoration: BoxDecoration(
+              color: c.canvas,
+              borderRadius: BorderRadius.circular(contained ? 28 : 0),
+              border: contained ? Border.all(color: c.borderSubtle) : null,
+              boxShadow: contained
+                  ? const [
+                      BoxShadow(
+                        color: Color(0x140A0A0A),
+                        blurRadius: 32,
+                        offset: Offset(0, 12),
+                      ),
+                    ]
+                  : null,
+            ),
             child: Column(
               children: [
                 Container(
                   color: c.canvas,
                   width: double.infinity,
                   padding: EdgeInsets.only(
-                      top: MediaQuery.paddingOf(context).top + 16, bottom: 24),
+                    top: MediaQuery.paddingOf(context).top + 16,
+                    bottom: 24,
+                  ),
                   child: Column(
                     children: [
                       const _LoginLogo(),
                       const SizedBox(height: 12),
                       const CarpsWordmark(size: 32),
                       const SizedBox(height: 6),
-                      Text('Are you Game? Find your crowd here.',
-                          style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w500,
-                              color: c.textSecondary)),
+                      Text(
+                        'Are you Game? Find your crowd here.',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                          color: c.textSecondary,
+                        ),
+                      ),
                       const SizedBox(height: 20),
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 35),
@@ -182,166 +207,214 @@ class _LoginViewState extends State<LoginView> {
                     ],
                   ),
                 ),
-                DarkSheet(
-                  roundBottom: MediaQuery.sizeOf(context).width > 480,
+                Container(
+                  width: double.infinity,
+                  color: c.canvas,
                   padding: const EdgeInsets.fromLTRB(16, 28, 16, 40),
-                  child: Builder(builder: (context) {
-                    final d = context.carps;
-                    return Form(
-                      key: _form,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          Material(
-                            color: d.inverseRaised,
-                            shape: const StadiumBorder(),
-                            child: InkWell(
-                              customBorder: const StadiumBorder(),
-                              onTap: _google,
-                              child: SizedBox(
-                                height: 48,
-                                child: Row(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    SvgPicture.asset('assets/images/google_g.svg',
-                                        width: 20, height: 20),
-                                    const SizedBox(width: 12),
-                                    const Text('Continue with Google',
-                                        style: TextStyle(
-                                            fontSize: 14,
-                                            fontWeight: FontWeight.w500,
-                                            color: Colors.white)),
-                                    const SizedBox(width: 8),
-                                    if (app.authGateway == null)
-                                      const SimulatedTag(),
-                                  ],
+                  child: Form(
+                    key: _form,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Material(
+                          color: d.inverseRaised,
+                          shape: const StadiumBorder(),
+                          child: InkWell(
+                            customBorder: const StadiumBorder(),
+                            onTap: _google,
+                            child: SizedBox(
+                              height: 48,
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  SvgPicture.asset(
+                                    'assets/images/google_g.svg',
+                                    width: 20,
+                                    height: 20,
+                                  ),
+                                  const SizedBox(width: 12),
+                                  const Text(
+                                    'Continue with Google',
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w500,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  if (app.authGateway == null)
+                                    const SimulatedTag(),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 24),
+                          child: Row(
+                            children: [
+                              Expanded(child: Divider(color: d.borderSubtle)),
+                              Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                ),
+                                child: Text(
+                                  'or with email',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: d.textSecondary,
+                                  ),
                                 ),
                               ),
+                              Expanded(child: Divider(color: d.borderSubtle)),
+                            ],
+                          ),
+                        ),
+                        const FieldLabel('Email'),
+                        TextFormField(
+                          controller: _email,
+                          keyboardType: TextInputType.emailAddress,
+                          autofillHints: const [AutofillHints.email],
+                          textInputAction: TextInputAction.next,
+                          style: const TextStyle(fontSize: 14),
+                          decoration: const InputDecoration(
+                            hintText: 'ana.reyes@example.com',
+                            prefixIcon: Icon(
+                              CarpsIcons.envelopeSimple,
+                              size: 20,
                             ),
                           ),
-                          Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 24),
-                            child: Row(children: [
-                              Expanded(child: Divider(color: d.inverseRaised)),
-                              Padding(
-                                padding:
-                                    const EdgeInsets.symmetric(horizontal: 12),
-                                child: Text('or with email',
+                          validator: (v) => CarpsService.isValidEmail(v ?? '')
+                              ? null
+                              : 'Enter a valid email address.',
+                        ),
+                        const SizedBox(height: 16),
+                        FieldLabel(
+                          'Password',
+                          trailing: _signUp
+                              ? null
+                              : InkWell(
+                                  onTap: () => context.push('/recover'),
+                                  child: Text(
+                                    'Forgot password?',
                                     style: TextStyle(
-                                        fontSize: 12, color: d.textSecondary)),
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w500,
+                                      color: d.accentText,
+                                    ),
+                                  ),
+                                ),
+                        ),
+                        TextFormField(
+                          controller: _password,
+                          obscureText: _obscure,
+                          autofillHints: const [AutofillHints.password],
+                          onFieldSubmitted: (_) => _submit(),
+                          style: const TextStyle(fontSize: 14),
+                          decoration: InputDecoration(
+                            hintText: _signUp
+                                ? 'At least 8 characters'
+                                : 'Password',
+                            prefixIcon: const Icon(CarpsIcons.lock, size: 20),
+                            suffixIcon: IconButton(
+                              tooltip: _obscure
+                                  ? 'Show password'
+                                  : 'Hide password',
+                              icon: Icon(
+                                _obscure ? CarpsIcons.eyeSlash : CarpsIcons.eye,
                               ),
-                              Expanded(child: Divider(color: d.inverseRaised)),
-                            ]),
-                          ),
-                          const FieldLabel('Email'),
-                          TextFormField(
-                            controller: _email,
-                            keyboardType: TextInputType.emailAddress,
-                            autofillHints: const [AutofillHints.email],
-                            textInputAction: TextInputAction.next,
-                            style: const TextStyle(fontSize: 14),
-                            decoration: const InputDecoration(
-                              hintText: 'ana.reyes@example.com',
-                              prefixIcon: Icon(CarpsIcons.envelopeSimple,
-                                  size: 20),
+                              onPressed: () =>
+                                  setState(() => _obscure = !_obscure),
                             ),
-                            validator: (v) => CarpsService.isValidEmail(v ?? '')
-                                ? null
-                                : 'Enter a valid email address.',
                           ),
-                          const SizedBox(height: 16),
-                          FieldLabel('Password',
-                              trailing: _signUp
-                                  ? null
-                                  : InkWell(
-                                      onTap: () => context.push('/recover'),
-                                      child: Text('Forgot password?',
-                                          style: TextStyle(
-                                              fontSize: 12,
-                                              fontWeight: FontWeight.w500,
-                                              color: d.accentOnInverse)),
-                                    )),
-                          TextFormField(
-                            controller: _password,
-                            obscureText: _obscure,
-                            autofillHints: const [AutofillHints.password],
-                            onFieldSubmitted: (_) => _submit(),
-                            style: const TextStyle(fontSize: 14),
-                            decoration: InputDecoration(
-                              hintText: _signUp ? 'At least 8 characters' : 'Password',
-                              prefixIcon:
-                                  const Icon(CarpsIcons.lock, size: 20),
-                              suffixIcon: IconButton(
-                                tooltip: _obscure ? 'Show password' : 'Hide password',
-                                icon: Icon(_obscure
-                                    ? CarpsIcons.eyeSlash
-                                    : CarpsIcons.eye),
-                                onPressed: () =>
-                                    setState(() => _obscure = !_obscure),
-                              ),
+                          validator: (v) {
+                            if ((v ?? '').isEmpty) {
+                              return 'Enter your password.';
+                            }
+                            if (_signUp && v!.length < 8) {
+                              return 'Use at least 8 characters.';
+                            }
+                            return null;
+                          },
+                        ),
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            Icon(
+                              CarpsIcons.checkCircle,
+                              size: 13,
+                              color: d.success,
                             ),
-                            validator: (v) {
-                              if ((v ?? '').isEmpty) return 'Enter your password.';
-                              if (_signUp && v!.length < 8) {
-                                return 'Use at least 8 characters.';
-                              }
-                              return null;
-                            },
-                          ),
-                          const SizedBox(height: 8),
-                          Row(children: [
-                            Icon(CarpsIcons.checkCircle,
-                                size: 13, color: d.success),
                             const SizedBox(width: 6),
-                            Text('Encrypted and protected',
-                                style: TextStyle(
-                                    fontSize: 12, color: d.textSecondary)),
-                          ]),
-                          if (_error != null) ...[
-                            const SizedBox(height: 12),
-                            Row(children: [
-                              Icon(CarpsIcons.warningCircle,
-                                  size: 16, color: d.error),
+                            Text(
+                              'Encrypted and protected',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: d.textSecondary,
+                              ),
+                            ),
+                          ],
+                        ),
+                        if (_error != null) ...[
+                          const SizedBox(height: 12),
+                          Row(
+                            children: [
+                              Icon(
+                                CarpsIcons.warningCircle,
+                                size: 16,
+                                color: d.error,
+                              ),
                               const SizedBox(width: 6),
                               Expanded(
-                                  child: Text(_error!,
-                                      style: TextStyle(
-                                          color: d.error, fontSize: 13))),
-                            ]),
-                          ],
-                          const SizedBox(height: 20),
-                          CarpsButton(
-                            label: _signUp ? 'Create account' : 'Log in',
-                            trailingArrow: true,
-                            loading: _busy,
-                            height: 52,
-                            onPressed: _submit,
-                          ),
-                          const SizedBox(height: 24),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Text(_signUp ? 'Have an account?' : 'New here?',
-                                  style: TextStyle(
-                                      fontSize: 14, color: d.textSecondary)),
-                              TextButton(
-                                onPressed: () =>
-                                    setState(() => _signUp = !_signUp),
                                 child: Text(
-                                    _signUp ? 'Log in' : 'Create an account',
-                                    style: TextStyle(
-                                        fontSize: 14,
-                                        fontWeight: FontWeight.w500,
-                                        color: d.accentOnInverse)),
+                                  _error!,
+                                  style: TextStyle(
+                                    color: d.error,
+                                    fontSize: 13,
+                                  ),
+                                ),
                               ),
                             ],
                           ),
-                          const SizedBox(height: 16),
-                          const CarpsCopyright(),
                         ],
-                      ),
-                    );
-                  }),
+                        const SizedBox(height: 20),
+                        CarpsButton(
+                          label: _signUp ? 'Create account' : 'Log in',
+                          trailingArrow: true,
+                          loading: _busy,
+                          height: 52,
+                          onPressed: _submit,
+                        ),
+                        const SizedBox(height: 24),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              _signUp ? 'Have an account?' : 'New here?',
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: d.textSecondary,
+                              ),
+                            ),
+                            TextButton(
+                              onPressed: () =>
+                                  setState(() => _signUp = !_signUp),
+                              child: Text(
+                                _signUp ? 'Log in' : 'Create an account',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w500,
+                                  color: d.accentText,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 16),
+                        const CarpsCopyright(),
+                      ],
+                    ),
+                  ),
                 ),
               ],
             ),

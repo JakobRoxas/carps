@@ -200,39 +200,45 @@ class _EventFormViewState extends State<EventFormView> {
                   title: _editing == null ? 'Create event' : 'Edit event',
                 ),
                 Expanded(
-                  child: ListView(
-                    padding: EdgeInsets.zero,
-                    children: [
-                      Center(
-                        child: ConstrainedBox(
-                          constraints: BoxConstraints(
-                            maxWidth: desktop ? 1240 : 720,
-                          ),
-                          child: Padding(
-                            padding: EdgeInsets.symmetric(
-                              horizontal: desktop ? 24 : 0,
-                            ),
-                            child: desktop
-                                ? Row(
+                  child: desktop
+                      ? LayoutBuilder(
+                          builder: (context, constraints) => Center(
+                            child: ConstrainedBox(
+                              constraints: const BoxConstraints(maxWidth: 1240),
+                              child: SizedBox(
+                                height: constraints.maxHeight,
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 24,
+                                  ),
+                                  child: Row(
                                     crossAxisAlignment:
-                                        CrossAxisAlignment.start,
+                                        CrossAxisAlignment.stretch,
                                     children: [
                                       Expanded(
                                         child: Column(
                                           crossAxisAlignment:
                                               CrossAxisAlignment.stretch,
                                           children: [
-                                            _tabsBar(desktop: desktop),
-                                            DarkSheet(
-                                              fill: true,
-                                              padding:
-                                                  const EdgeInsets.fromLTRB(
-                                                    28,
-                                                    28,
-                                                    28,
-                                                    32,
-                                                  ),
-                                              child: _activeTab(context),
+                                            _tabsBar(desktop: true),
+                                            Expanded(
+                                              child: DarkSheet(
+                                                padding:
+                                                    const EdgeInsets.fromLTRB(
+                                                      28,
+                                                      28,
+                                                      28,
+                                                      32,
+                                                    ),
+                                                child: Builder(
+                                                  builder: (context) =>
+                                                      SingleChildScrollView(
+                                                        child: _activeTab(
+                                                          context,
+                                                        ),
+                                                      ),
+                                                ),
+                                              ),
                                             ),
                                           ],
                                         ),
@@ -240,26 +246,32 @@ class _EventFormViewState extends State<EventFormView> {
                                       const SizedBox(width: 24),
                                       SizedBox(
                                         width: 300,
-                                        child: _draftPreview(context),
-                                      ),
-                                    ],
-                                  )
-                                : Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.stretch,
-                                    children: [
-                                      _tabsBar(desktop: desktop),
-                                      DarkSheet(
-                                        fill: true,
-                                        child: _activeTab(context),
+                                        child: SingleChildScrollView(
+                                          child: _draftPreview(context),
+                                        ),
                                       ),
                                     ],
                                   ),
+                                ),
+                              ),
+                            ),
                           ),
+                        )
+                      : Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            _tabsBar(desktop: false),
+                            Expanded(
+                              child: DarkSheet(
+                                child: Builder(
+                                  builder: (context) => SingleChildScrollView(
+                                    child: _activeTab(context),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
-                      ),
-                    ],
-                  ),
                 ),
               ],
             ),
@@ -592,7 +604,6 @@ class _EventFormViewState extends State<EventFormView> {
 
   Widget _time(BuildContext context) {
     final d = context.carps;
-    final wide = MediaQuery.sizeOf(context).width >= 600;
     final svc = context.svc;
     Future<void> pick(bool isStart) async {
       final base = isStart ? _start : _end;
@@ -669,65 +680,108 @@ class _EventFormViewState extends State<EventFormView> {
       ),
     );
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Row(
-          children: [
-            const CaptionLabel('Starts'),
-            const Spacer(),
-            Text(
-              dateTime(_start),
-              style: TextStyle(
-                color: d.accentOnInverse,
-                fontWeight: FontWeight.w600,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final useWheel = constraints.maxWidth < 600;
+        Widget editor(bool isStart) {
+          final value = isStart ? _start : _end;
+          if (useWheel) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  children: [
+                    CaptionLabel(isStart ? 'Starts' : 'Ends'),
+                    const Spacer(),
+                    Text(
+                      dateTime(value),
+                      style: TextStyle(
+                        color: d.accentOnInverse,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                wheel(isStart),
+              ],
+            );
+          }
+
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              CaptionLabel(isStart ? 'Starts' : 'Ends'),
+              const SizedBox(height: 8),
+              SurfaceCard(
+                color: d.inverse,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(
+                          isStart ? CarpsIcons.calendarBlank : CarpsIcons.clock,
+                          size: 20,
+                          color: d.accentOnInverse,
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            dateTime(value),
+                            style: TextStyle(
+                              color: d.textPrimary,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    CarpsButton(
+                      label: isStart ? 'Change start' : 'Change end',
+                      icon: isStart
+                          ? CarpsIcons.calendarBlank
+                          : CarpsIcons.clock,
+                      kind: CarpsButtonKind.muted,
+                      onPressed: () => pick(isStart),
+                    ),
+                  ],
+                ),
               ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 8),
-        if (wide)
-          CarpsButton(
-            label: dateTime(_start),
-            icon: CarpsIcons.calendarBlank,
-            kind: CarpsButtonKind.muted,
-            onPressed: () => pick(true),
-          )
-        else
-          wheel(true),
-        const SizedBox(height: 20),
-        Row(
+            ],
+          );
+        }
+
+        final sideBySide = !useWheel && constraints.maxWidth >= 680;
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const CaptionLabel('Ends'),
-            const Spacer(),
-            Text(
-              dateTime(_end),
-              style: TextStyle(
-                color: d.accentOnInverse,
-                fontWeight: FontWeight.w600,
+            if (sideBySide)
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(child: editor(true)),
+                  const SizedBox(width: 16),
+                  Expanded(child: editor(false)),
+                ],
+              )
+            else ...[
+              editor(true),
+              const SizedBox(height: 20),
+              editor(false),
+            ],
+            if (!_end.isAfter(_start))
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Text(
+                  'End time must be after the start time.',
+                  style: TextStyle(color: d.error, fontSize: 12),
+                ),
               ),
-            ),
           ],
-        ),
-        const SizedBox(height: 8),
-        if (wide)
-          CarpsButton(
-            label: dateTime(_end),
-            icon: CarpsIcons.clock,
-            kind: CarpsButtonKind.muted,
-            onPressed: () => pick(false),
-          )
-        else
-          wheel(false),
-        if (!_end.isAfter(_start))
-          Padding(
-            padding: const EdgeInsets.only(top: 8),
-            child: Text(
-              'End time must be after the start time.',
-              style: TextStyle(color: d.error, fontSize: 12),
-            ),
-          ),
-      ],
+        );
+      },
     );
   }
 

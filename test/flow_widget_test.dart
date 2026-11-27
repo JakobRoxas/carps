@@ -5,6 +5,7 @@ import 'package:carps/main.dart';
 import 'package:carps/models/carps_models.dart';
 import 'package:carps/repositories/mock_carps_repository.dart';
 import 'package:carps/views/profile/rsvps_view.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
@@ -105,6 +106,29 @@ void main() {
     expect(find.textContaining('Ana'), findsWidgets);
     expect(find.text('For You'), findsOneWidget);
     expect(find.text('Hosting'), findsOneWidget);
+  });
+
+  testWidgets('login form surface matches the light desktop page', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1280, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    app = AppController(MockCarpsRepository.seeded(now), clock: () => now);
+    await tester.pumpWidget(CarpsApp(controller: app));
+    await settle(tester);
+
+    final formPanel = find
+        .ancestor(
+          of: find.byType(Form),
+          matching: find.byWidgetPredicate(
+            (widget) =>
+                widget is Container && widget.color == CarpsColors.light.canvas,
+          ),
+        )
+        .first;
+    expect(tester.widget<Container>(formPanel).color, CarpsColors.light.canvas);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('wrong password shows an error and stays on login', (
@@ -433,6 +457,31 @@ void main() {
     expect(find.text('LISTING PREVIEW'), findsOneWidget);
     expect(find.text('Publish event'), findsOneWidget);
     expect(find.byType(BottomActionBar), findsNothing);
+    await tester.tap(find.text('Time').last);
+    await settle(tester);
+    expect(find.text('STARTS'), findsOneWidget);
+    expect(tester.getRect(find.byType(DarkSheet)).bottom, closeTo(900, 1));
+    expect(find.text('Change start'), findsOneWidget);
+    expect(find.text('Change end'), findsOneWidget);
+    expect(find.byType(CupertinoDatePicker), findsNothing);
+    expect(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is Text &&
+            widget.data == 'Fri, Nov 27 · 6:00 PM' &&
+            widget.style?.color == CarpsColors.dark.textPrimary,
+      ),
+      findsOneWidget,
+    );
+    await tester.tap(find.text('Guests').last);
+    await settle(tester);
+    final guestHint = find.text(
+      'Builders you invite get hosting tools (approve requests, scan passes) only after they accept.',
+    );
+    expect(
+      tester.widget<Text>(guestHint).style?.color,
+      CarpsColors.dark.textSecondary,
+    );
     expect(tester.takeException(), isNull);
   });
 
@@ -451,6 +500,13 @@ void main() {
     await settle(tester);
     expect(find.byType(BottomActionBar), findsOneWidget);
     expect(find.text('LISTING PREVIEW'), findsNothing);
+    await tester.tap(find.text('Time').last);
+    await settle(tester);
+    expect(find.byType(CupertinoDatePicker), findsNWidgets(2));
+    expect(
+      tester.getRect(find.byType(DarkSheet)).bottom,
+      closeTo(tester.getRect(find.byType(BottomActionBar)).top, 1),
+    );
     expect(tester.takeException(), isNull);
   });
 
