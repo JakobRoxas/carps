@@ -29,21 +29,19 @@ Future<void> main() async {
     return;
   }
 
-  final firebaseApp =
-      await Firebase.initializeApp(options: FirebaseRuntime.options);
+  final firebaseApp = await Firebase.initializeApp(
+    options: FirebaseRuntime.options,
+  );
   final auth = FirebaseAuth.instanceFor(app: firebaseApp);
   final firestore = FirebaseFirestore.instanceFor(app: firebaseApp);
-  final functions =
-      FirebaseFunctions.instanceFor(app: firebaseApp, region: 'asia-southeast1');
-  if (FirebaseRuntime.useEmulators) {
-    final host = FirebaseRuntime.emulatorHost;
-    await auth.useAuthEmulator(host, 9099);
-    firestore.useFirestoreEmulator(host, 8080);
-    functions.useFunctionsEmulator(host, 5001);
-  }
-
-  final repo =
-      FirebaseCarpsRepository(functions: functions, firestore: firestore);
+  final functions = FirebaseFunctions.instanceFor(
+    app: firebaseApp,
+    region: 'asia-southeast1',
+  );
+  final repo = FirebaseCarpsRepository(
+    functions: functions,
+    firestore: firestore,
+  );
   final authGateway = FirebaseAuthGateway(auth: auth, repository: repo);
   String? restoredUserId;
   try {
@@ -52,14 +50,16 @@ Future<void> main() async {
   } on FirebaseFunctionsException {
     // The repository exposes the sync failure in the app banner.
   }
-  final controller = AppController(repo,
-      authGateway: authGateway, initialUserId: restoredUserId);
+  final controller = AppController(
+    repo,
+    authGateway: authGateway,
+    initialUserId: restoredUserId,
+  );
   runApp(CarpsApp(controller: controller, showDemo: false));
 }
 
 class CarpsApp extends StatefulWidget {
-  const CarpsApp(
-      {super.key, required this.controller, this.showDemo = true});
+  const CarpsApp({super.key, required this.controller, this.showDemo = true});
   final AppController controller;
   final bool showDemo;
 
