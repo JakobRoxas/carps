@@ -56,9 +56,7 @@ class _ProfileViewState extends State<ProfileView> {
     final tabName = tabLabels[tab];
     final standalone = widget.userId != null;
 
-    final content = ListView(
-      padding: EdgeInsets.zero,
-      children: [
+    final content = SheetScroll(children: [
         Center(
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 760),

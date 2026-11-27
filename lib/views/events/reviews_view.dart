@@ -52,9 +52,7 @@ class _ReviewsViewState extends State<ReviewsView> {
         child: Column(children: [
           BackHeader(title: 'Event reviews'),
           Expanded(
-            child: ListView(
-              padding: EdgeInsets.zero,
-              children: [
+            child: SheetScroll(children: [
                 Center(
                   child: ConstrainedBox(
                     constraints: const BoxConstraints(maxWidth: 720),
