@@ -2,7 +2,7 @@ import '../core/demo_photos.dart';
 import '../models/carps_models.dart';
 import 'carps_repository.dart';
 
-/// In-memory repository used until Firebase is wired up.
+/// In-memory repository used by tests and the local demo mode.
 ///
 /// Every list is replaced on write so callers never mutate shared state.
 class MockCarpsRepository extends CarpsRepository {
@@ -26,6 +26,22 @@ class MockCarpsRepository extends CarpsRepository {
   final Map<String, AppNotification> _notifications = {};
   final Map<String, SupportCase> _cases = {};
   final Map<String, int> _counters = {};
+
+  @override
+  void clear() {
+    _users.clear();
+    _events.clear();
+    _invitations.clear();
+    _registrations.clear();
+    _passes.clear();
+    _attendance.clear();
+    _posts.clear();
+    _reviews.clear();
+    _notifications.clear();
+    _cases.clear();
+    _counters.clear();
+    notifyListeners();
+  }
 
   @override
   String nextId(String prefix) {
@@ -167,8 +183,11 @@ class DemoIds {
 /// actually be exercised.
 void seedDemoWorld(MockCarpsRepository repo, DateTime now) {
   DateTime at(int dayOffset, int hour, [int minute = 0]) {
-    final d = DateTime(now.year, now.month, now.day)
-        .add(Duration(days: dayOffset));
+    final d = DateTime(
+      now.year,
+      now.month,
+      now.day,
+    ).add(Duration(days: dayOffset));
     return DateTime(d.year, d.month, d.day, hour, minute);
   }
 
@@ -209,55 +228,89 @@ void seedDemoWorld(MockCarpsRepository repo, DateTime now) {
   }
 
   for (final user in [
-    u(DemoIds.mika, 'Mika Cruz', 'mikacruz',
-        bio: 'Running weekly sunset open play at The Upper Deck. All levels welcome.',
-        area: 'Bonifacio Global City',
-        interests: ['Pickleball', 'Running & Fitness', 'Coffee Crawls'],
-        hosting: true,
-        builderName: 'BGC Smashers',
-        builderAbout: 'Weekly pickleball open play and beginner clinics around High Street.',
-        role: PrimaryRole.builder),
-    u(DemoIds.ana, 'Ana Reyes', 'anareyes',
-        bio: 'Always game for pickleball and third-wave coffee.',
-        area: 'Bonifacio Global City',
-        interests: ['Tech & AI', 'Pickleball', 'Food & Drinks'],
-        following: [DemoIds.mika]),
-    u(DemoIds.sofia, 'Sofia Santos', 'sofiasantos',
-        bio: 'Foodie and board-game regular.',
-        area: 'Makati',
-        interests: ['Pickleball', 'Chess & Board Games', 'Food & Drinks'],
-        following: [DemoIds.mika]),
-    u(DemoIds.paolo, 'Paolo Tan', 'paolotan',
-        bio: 'Sunday smasher in training.',
-        area: 'Ortigas',
-        interests: ['Pickleball', 'Running & Fitness', 'Badminton']),
-    u(DemoIds.marco, 'Marco Lim', 'marcolim',
-        bio: 'First time at Upper Deck!',
-        area: 'Quezon City',
-        interests: ['Pickleball', 'Tech & AI', 'Music & Gigs']),
-    u(DemoIds.bea, 'Bea Valenzuela', 'beavalenzuela',
-        bio: 'Coffee enthusiast from Pasig.',
-        area: 'Ortigas',
-        interests: ['Coffee Crawls', 'Pickleball', 'Design & Creative'],
-        following: [DemoIds.mika]),
-    u(DemoIds.david, 'David Lim', 'davidlim',
-        bio: 'Tech Manila host. Strategy games on weekends.',
-        area: 'Makati',
-        interests: ['Tech & AI', 'Chess & Board Games', 'Food & Drinks'],
-        hosting: true,
-        builderName: 'Manila Tech Guild',
-        builderAbout: 'Founder meetups, AI demo nights and the occasional food crawl.',
-        role: PrimaryRole.builder),
-    u(DemoIds.sam, 'Sam Bautista', 'sambautista',
-        bio: 'CARPS pilot support.',
-        area: 'Manila',
-        interests: ['Tech & AI', 'Coffee Crawls', 'Running & Fitness'],
-        admin: true),
+    u(
+      DemoIds.mika,
+      'Mika Cruz',
+      'mikacruz',
+      bio: 'Running weekly sunset open play at The Upper Deck. All levels welcome.',
+      area: 'Bonifacio Global City',
+      interests: ['Pickleball', 'Running & Fitness', 'Coffee Crawls'],
+      hosting: true,
+      builderName: 'BGC Smashers',
+      builderAbout: 'Weekly pickleball open play and beginner clinics around High Street.',
+      role: PrimaryRole.builder,
+    ),
+    u(
+      DemoIds.ana,
+      'Ana Reyes',
+      'anareyes',
+      bio: 'Always game for pickleball and third-wave coffee.',
+      area: 'Bonifacio Global City',
+      interests: ['Tech & AI', 'Pickleball', 'Food & Drinks'],
+      following: [DemoIds.mika],
+    ),
+    u(
+      DemoIds.sofia,
+      'Sofia Santos',
+      'sofiasantos',
+      bio: 'Foodie and board-game regular.',
+      area: 'Makati',
+      interests: ['Pickleball', 'Chess & Board Games', 'Food & Drinks'],
+      following: [DemoIds.mika],
+    ),
+    u(
+      DemoIds.paolo,
+      'Paolo Tan',
+      'paolotan',
+      bio: 'Sunday smasher in training.',
+      area: 'Ortigas',
+      interests: ['Pickleball', 'Running & Fitness', 'Badminton'],
+    ),
+    u(
+      DemoIds.marco,
+      'Marco Lim',
+      'marcolim',
+      bio: 'First time at Upper Deck!',
+      area: 'Quezon City',
+      interests: ['Pickleball', 'Tech & AI', 'Music & Gigs'],
+    ),
+    u(
+      DemoIds.bea,
+      'Bea Valenzuela',
+      'beavalenzuela',
+      bio: 'Coffee enthusiast from Pasig.',
+      area: 'Ortigas',
+      interests: ['Coffee Crawls', 'Pickleball', 'Design & Creative'],
+      following: [DemoIds.mika],
+    ),
+    u(
+      DemoIds.david,
+      'David Lim',
+      'davidlim',
+      bio: 'Tech Manila host. Strategy games on weekends.',
+      area: 'Makati',
+      interests: ['Tech & AI', 'Chess & Board Games', 'Food & Drinks'],
+      hosting: true,
+      builderName: 'Manila Tech Guild',
+      builderAbout:
+          'Founder meetups, AI demo nights and the occasional food crawl.',
+      role: PrimaryRole.builder,
+    ),
+    u(
+      DemoIds.sam,
+      'Sam Bautista',
+      'sambautista',
+      bio: 'CARPS pilot support.',
+      area: 'Manila',
+      interests: ['Tech & AI', 'Coffee Crawls', 'Running & Fitness'],
+      admin: true,
+    ),
   ]) {
     repo.saveUser(user);
   }
 
-  const upperDeck = 'The Upper Deck Sports Center, 6th Floor, High Street South';
+  const upperDeck =
+      'The Upper Deck Sports Center, 6th Floor, High Street South';
   const openPlayTitle = 'Pop and Pickle: Pickle Open Play';
 
   final events = [
@@ -355,7 +408,8 @@ void seedDemoWorld(MockCarpsRepository repo, DateTime now) {
       id: DemoIds.techNight,
       hostId: DemoIds.david,
       title: 'OpenAI Exchange Community Event',
-      description: 'Five-minute demos from local founders, then open networking.',
+      description:
+          'Five-minute demos from local founders, then open networking.',
       topic: 'Tech & AI',
       venue: 'KMC Megamall, Mandaluyong',
       area: 'Mandaluyong',
@@ -369,7 +423,8 @@ void seedDemoWorld(MockCarpsRepository repo, DateTime now) {
       id: DemoIds.foodCrawl,
       hostId: DemoIds.david,
       title: 'Binondo Eats: Street Food Challenge',
-      description: 'Try dumplings, kikiam and hopia across six stops in Chinatown.',
+      description:
+          'Try dumplings, kikiam and hopia across six stops in Chinatown.',
       topic: 'Food & Drinks',
       venue: 'Ongpin St, Binondo',
       area: 'Manila',
@@ -426,70 +481,99 @@ void seedDemoWorld(MockCarpsRepository repo, DateTime now) {
   }
 
   var passCounter = 880;
-  void reg(String eventId, String userId, RegistrationStatus status,
-      {bool attended = false, String note = ''}) {
+  void reg(
+    String eventId,
+    String userId,
+    RegistrationStatus status, {
+    bool attended = false,
+    String note = '',
+  }) {
     final event = repo.event(eventId)!;
     final regId = repo.nextId('reg');
     String? passId;
     if (status == RegistrationStatus.approved) {
       passCounter++;
       passId = repo.nextId('pass');
-      repo.savePass(GuestPass(
-        id: passId,
-        token: 'CARP-$passCounter-${userId.substring(2).toUpperCase()}',
-        eventId: eventId,
-        userId: userId,
-        registrationId: regId,
-        issuedAt: event.start.subtract(const Duration(days: 1)),
-      ));
+      repo.savePass(
+        GuestPass(
+          id: passId,
+          token: 'CARP-$passCounter-${userId.substring(2).toUpperCase()}',
+          eventId: eventId,
+          userId: userId,
+          registrationId: regId,
+          issuedAt: event.start.subtract(const Duration(days: 1)),
+        ),
+      );
     }
-    repo.saveRegistration(Registration(
-      id: regId,
-      eventId: eventId,
-      userId: userId,
-      status: status,
-      requestedAt: event.start.subtract(const Duration(days: 2)),
-      decidedAt: status == RegistrationStatus.pending
-          ? null
-          : event.start.subtract(const Duration(days: 1)),
-      passId: passId,
-      note: note,
-    ));
-    if (attended) {
-      repo.saveAttendance(Attendance(
+    repo.saveRegistration(
+      Registration(
+        id: regId,
         eventId: eventId,
         userId: userId,
-        arrivedAt: event.start.add(const Duration(minutes: 5)),
-        scannedById: event.hostId,
+        status: status,
+        requestedAt: event.start.subtract(const Duration(days: 2)),
+        decidedAt: status == RegistrationStatus.pending
+            ? null
+            : event.start.subtract(const Duration(days: 1)),
         passId: passId,
-      ));
+        note: note,
+      ),
+    );
+    if (attended) {
+      repo.saveAttendance(
+        Attendance(
+          eventId: eventId,
+          userId: userId,
+          arrivedAt: event.start.add(const Duration(minutes: 5)),
+          scannedById: event.hostId,
+          passId: passId,
+        ),
+      );
     }
   }
 
   // Past public session: Ana + Sofia checked in, Paolo no-show, Marco declined.
-  reg(DemoIds.pickleballPast, DemoIds.ana, RegistrationStatus.approved,
-      attended: true);
-  reg(DemoIds.pickleballPast, DemoIds.sofia, RegistrationStatus.approved,
-      attended: true);
+  reg(
+    DemoIds.pickleballPast,
+    DemoIds.ana,
+    RegistrationStatus.approved,
+    attended: true,
+  );
+  reg(
+    DemoIds.pickleballPast,
+    DemoIds.sofia,
+    RegistrationStatus.approved,
+    attended: true,
+  );
   reg(DemoIds.pickleballPast, DemoIds.paolo, RegistrationStatus.approved);
   reg(DemoIds.pickleballPast, DemoIds.marco, RegistrationStatus.declined);
 
   // Past private clinic: invited Ana, Sofia, Paolo. Paolo did not come.
   for (final id in [DemoIds.ana, DemoIds.sofia, DemoIds.paolo]) {
-    repo.saveInvitation(Invitation(
-      id: repo.nextId('inv'),
-      eventId: DemoIds.clinicPast,
-      inviteeId: id,
-      invitedById: DemoIds.mika,
-      kind: InvitationKind.guest,
-      createdAt: at(-6, 9),
-      status: InvitationStatus.accepted,
-    ));
+    repo.saveInvitation(
+      Invitation(
+        id: repo.nextId('inv'),
+        eventId: DemoIds.clinicPast,
+        inviteeId: id,
+        invitedById: DemoIds.mika,
+        kind: InvitationKind.guest,
+        createdAt: at(-6, 9),
+        status: InvitationStatus.accepted,
+      ),
+    );
   }
-  reg(DemoIds.clinicPast, DemoIds.ana, RegistrationStatus.approved,
-      attended: true);
-  reg(DemoIds.clinicPast, DemoIds.sofia, RegistrationStatus.approved,
-      attended: true);
+  reg(
+    DemoIds.clinicPast,
+    DemoIds.ana,
+    RegistrationStatus.approved,
+    attended: true,
+  );
+  reg(
+    DemoIds.clinicPast,
+    DemoIds.sofia,
+    RegistrationStatus.approved,
+    attended: true,
+  );
   reg(DemoIds.clinicPast, DemoIds.paolo, RegistrationStatus.approved);
 
   // Ana's history extras: a no-show and a cancelled session.
@@ -499,8 +583,12 @@ void seedDemoWorld(MockCarpsRepository repo, DateTime now) {
   // Live session (starts in 1h): the end-to-end demo happens here.
   reg(DemoIds.pickleballLive, DemoIds.sofia, RegistrationStatus.approved);
   reg(DemoIds.pickleballLive, DemoIds.paolo, RegistrationStatus.approved);
-  reg(DemoIds.pickleballLive, DemoIds.marco, RegistrationStatus.pending,
-      note: 'First time playing at Upper Deck, excited to join!');
+  reg(
+    DemoIds.pickleballLive,
+    DemoIds.marco,
+    RegistrationStatus.pending,
+    note: 'First time playing at Upper Deck, excited to join!',
+  );
 
   // Upcoming public listings with a few approved guests for "going" counts.
   reg(DemoIds.techNight, DemoIds.sofia, RegistrationStatus.approved);
@@ -511,99 +599,115 @@ void seedDemoWorld(MockCarpsRepository repo, DateTime now) {
 
   // Upcoming private clinic: Ana and David (a builder) invited as GUESTS.
   for (final id in [DemoIds.ana, DemoIds.david]) {
-    repo.saveInvitation(Invitation(
-      id: repo.nextId('inv'),
-      eventId: DemoIds.clinicNext,
-      inviteeId: id,
-      invitedById: DemoIds.mika,
-      kind: InvitationKind.guest,
-      createdAt: now.subtract(const Duration(hours: 5)),
-    ));
-    repo.saveNotification(AppNotification(
-      id: repo.nextId('ntf'),
-      userId: id,
-      kind: NotificationKind.guestInvite,
-      title: 'Mika Cruz invited you to a private event',
-      body: 'Private Doubles Clinic #2. You can request to join; the host still decides.',
-      createdAt: now.subtract(const Duration(hours: 5)),
-      eventId: DemoIds.clinicNext,
-    ));
+    repo.saveInvitation(
+      Invitation(
+        id: repo.nextId('inv'),
+        eventId: DemoIds.clinicNext,
+        inviteeId: id,
+        invitedById: DemoIds.mika,
+        kind: InvitationKind.guest,
+        createdAt: now.subtract(const Duration(hours: 5)),
+      ),
+    );
+    repo.saveNotification(
+      AppNotification(
+        id: repo.nextId('ntf'),
+        userId: id,
+        kind: NotificationKind.guestInvite,
+        title: 'Mika Cruz invited you to a private event',
+        body: 'Private Doubles Clinic #2. You can request to join; the host still decides.',
+        createdAt: now.subtract(const Duration(hours: 5)),
+        eventId: DemoIds.clinicNext,
+      ),
+    );
   }
-  repo.saveNotification(AppNotification(
-    id: repo.nextId('ntf'),
-    userId: DemoIds.mika,
-    kind: NotificationKind.joinRequest,
-    title: 'Marco Lim requested to join',
-    body: '$openPlayTitle · review in Guest roster',
-    createdAt: now.subtract(const Duration(minutes: 20)),
-    eventId: DemoIds.pickleballLive,
-  ));
+  repo.saveNotification(
+    AppNotification(
+      id: repo.nextId('ntf'),
+      userId: DemoIds.mika,
+      kind: NotificationKind.joinRequest,
+      title: 'Marco Lim requested to join',
+      body: '$openPlayTitle · review in Guest roster',
+      createdAt: now.subtract(const Duration(minutes: 20)),
+      eventId: DemoIds.pickleballLive,
+    ),
+  );
 
   // One public post (tags the builder and a checked-in peer)…
-  repo.savePost(ExperiencePost(
-    id: DemoIds.publicPost,
-    eventId: DemoIds.pickleballPast,
-    authorId: DemoIds.ana,
-    body: 'First doubles win at Upper Deck!! Thanks @mikacruz for the awesome rally and @sofiasantos for carrying me.',
-    photoAsset: DemoPhotos.pickleball,
-    taggedIds: const [DemoIds.mika, DemoIds.sofia],
-    likedByIds: const [DemoIds.sofia, DemoIds.bea],
-    comments: [
-      PostComment(
-        id: 'c_seed_1',
-        authorId: DemoIds.sofia,
-        body: 'That last dink was unreal 🔥',
-        createdAt: at(-7, 22),
-      ),
-      PostComment(
-        id: 'c_seed_2',
-        authorId: DemoIds.ana,
-        body: 'Rematch next week!',
-        createdAt: at(-7, 22, 30),
-        parentId: 'c_seed_1',
-      ),
-    ],
-    createdAt: at(-7, 21, 40),
-  ));
+  repo.savePost(
+    ExperiencePost(
+      id: DemoIds.publicPost,
+      eventId: DemoIds.pickleballPast,
+      authorId: DemoIds.ana,
+      body: 'First doubles win at Upper Deck!! Thanks @mikacruz for the awesome rally and @sofiasantos for carrying me.',
+      photoAsset: DemoPhotos.pickleball,
+      taggedIds: const [DemoIds.mika, DemoIds.sofia],
+      likedByIds: const [DemoIds.sofia, DemoIds.bea],
+      comments: [
+        PostComment(
+          id: 'c_seed_1',
+          authorId: DemoIds.sofia,
+          body: 'That last dink was unreal 🔥',
+          createdAt: at(-7, 22),
+        ),
+        PostComment(
+          id: 'c_seed_2',
+          authorId: DemoIds.ana,
+          body: 'Rematch next week!',
+          createdAt: at(-7, 22, 30),
+          parentId: 'c_seed_1',
+        ),
+      ],
+      createdAt: at(-7, 21, 40),
+    ),
+  );
 
   // …and one PRIVATE post that tags Ana and Mika. Bea follows Mika but was
   // never part of the clinic, so she must not see it anywhere.
-  repo.savePost(ExperiencePost(
-    id: DemoIds.privatePost,
-    eventId: DemoIds.clinicPast,
-    authorId: DemoIds.sofia,
-    body: 'Third-shot drops finally clicked today. Ana and I are stacking pros now.',
-    taggedIds: const [DemoIds.ana, DemoIds.mika],
-    likedByIds: const [DemoIds.ana],
-    createdAt: at(-3, 10),
-  ));
+  repo.savePost(
+    ExperiencePost(
+      id: DemoIds.privatePost,
+      eventId: DemoIds.clinicPast,
+      authorId: DemoIds.sofia,
+      body: 'Third-shot drops finally clicked today. Ana and I are stacking pros now.',
+      taggedIds: const [DemoIds.ana, DemoIds.mika],
+      likedByIds: const [DemoIds.ana],
+      createdAt: at(-3, 10),
+    ),
+  );
 
-  repo.saveReview(EventReview(
-    id: repo.nextId('rev'),
-    eventId: DemoIds.pickleballPast,
-    authorId: DemoIds.sofia,
-    rating: 5,
-    text: 'Super welcoming host! Courts were ready on time and skill matching was spot on.',
-    createdAt: at(-6, 9),
-  ));
+  repo.saveReview(
+    EventReview(
+      id: repo.nextId('rev'),
+      eventId: DemoIds.pickleballPast,
+      authorId: DemoIds.sofia,
+      rating: 5,
+      text: 'Super welcoming host! Courts were ready on time and skill matching was spot on.',
+      createdAt: at(-6, 9),
+    ),
+  );
 
   // An open support case for the admin flow.
-  repo.saveCase(SupportCase(
-    id: repo.nextId('case'),
-    reporterId: DemoIds.paolo,
-    category: 'Attendance discrepancy',
-    link: 'carps.ph/event/${DemoIds.pickleballPast}',
-    details: 'I think I was marked as a no-show for Sunset Open Play but I was there.',
-    createdAt: at(-5, 12),
-    assignedAdminId: DemoIds.sam,
-  ));
-  repo.saveNotification(AppNotification(
-    id: repo.nextId('ntf'),
-    userId: DemoIds.sam,
-    kind: NotificationKind.supportAssigned,
-    title: 'New issue assigned to you',
-    body: 'Attendance discrepancy · reported by a member',
-    createdAt: at(-5, 12),
-    caseId: 'case_1',
-  ));
+  repo.saveCase(
+    SupportCase(
+      id: repo.nextId('case'),
+      reporterId: DemoIds.paolo,
+      category: 'Attendance discrepancy',
+      link: 'carps.ph/event/${DemoIds.pickleballPast}',
+      details: 'I think I was marked as a no-show for Sunset Open Play but I was there.',
+      createdAt: at(-5, 12),
+      assignedAdminId: DemoIds.sam,
+    ),
+  );
+  repo.saveNotification(
+    AppNotification(
+      id: repo.nextId('ntf'),
+      userId: DemoIds.sam,
+      kind: NotificationKind.supportAssigned,
+      title: 'New issue assigned to you',
+      body: 'Attendance discrepancy · reported by a member',
+      createdAt: at(-5, 12),
+      caseId: 'case_1',
+    ),
+  );
 }

@@ -1,6 +1,820 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function self(uid) {
+      return signedIn() && request.auth.uid == uid;
+    }
+
+    function profilePath(uid) {
+      return /databases/$(database)/documents/profiles/$(uid);
+    }
+
+    function usernamePath(username) {
+      return /databases/$(database)/documents/usernames/$(username);
+    }
+
+    function usernameReserved(data, uid) {
+      return existsAfter(usernamePath(data.username))
+        && getAfter(usernamePath(data.username)).data.userId == uid;
+    }
+
+    function isAdmin() {
+      return signedIn()
+        && exists(profilePath(request.auth.uid))
+        && get(profilePath(request.auth.uid)).data.isAdmin == true;
+    }
+
+    function eventPath(eventId) {
+      return /databases/$(database)/documents/events/$(eventId);
+    }
+
+    function accessPath(eventId, uid) {
+      return /databases/$(database)/documents/eventAccess/$(eventId + '_' + uid);
+    }
+
+    function registrationPath(eventId, uid) {
+      return /databases/$(database)/documents/registrations/$(('reg_' + eventId) + '_' + uid);
+    }
+
+    function hasEvent(eventId) {
+      return exists(eventPath(eventId));
+    }
+
+    function isEventTeam(eventId) {
+      return signedIn()
+        && hasEvent(eventId)
+        && (
+          get(eventPath(eventId)).data.hostId == request.auth.uid
+          || get(eventPath(eventId)).data.coHostIds.hasAny([request.auth.uid])
+        );
+    }
+
+    function hasEventAccess(eventId) {
+      return signedIn() && exists(accessPath(eventId, request.auth.uid));
+    }
+
+    function acceptedCoHost(eventId) {
+      let access = accessPath(eventId, request.auth.uid);
+      return exists(access)
+        && get(access).data.invitationId is string
+        && exists(
+          /databases/$(database)/documents/invitations/$(get(access).data.invitationId)
+        )
+        && get(
+          /databases/$(database)/documents/invitations/$(get(access).data.invitationId)
+        ).data.eventId == eventId
+        && get(
+          /databases/$(database)/documents/invitations/$(get(access).data.invitationId)
+        ).data.inviteeId == request.auth.uid
+        && get(
+          /databases/$(database)/documents/invitations/$(get(access).data.invitationId)
+        ).data.kind == 'coHost'
+        && get(
+          /databases/$(database)/documents/invitations/$(get(access).data.invitationId)
+        ).data.status == 'accepted';
+    }
+
+    function canReadEvent(eventId) {
+      return hasEvent(eventId)
+        && (
+          get(eventPath(eventId)).data.visibility == 'public'
+          || isEventTeam(eventId)
+          || hasEventAccess(eventId)
+        );
+    }
+
+    function hasAttendance(eventId, uid) {
+      return exists(
+        /databases/$(database)/documents/attendance/$(eventId + '_' + uid)
+      );
+    }
+
+    function canReadSocial(eventId) {
+      return hasEvent(eventId)
+        && (
+          get(eventPath(eventId)).data.visibility == 'public'
+          || isEventTeam(eventId)
+          || hasAttendance(eventId, request.auth.uid)
+        );
+    }
+
+    function validEventAccessLink(data) {
+      return (
+          data.keys().hasAny(['invitationId'])
+          && existsAfter(
+            /databases/$(database)/documents/invitations/$(data.invitationId)
+          )
+          && getAfter(
+            /databases/$(database)/documents/invitations/$(data.invitationId)
+          ).data.eventId == data.eventId
+          && getAfter(
+            /databases/$(database)/documents/invitations/$(data.invitationId)
+          ).data.inviteeId == data.userId
+          && (
+            request.auth.uid == data.userId
+            || (
+              getAfter(
+                /databases/$(database)/documents/invitations/$(data.invitationId)
+              ).data.invitedById == request.auth.uid
+              && isEventTeam(data.eventId)
+            )
+          )
+        )
+        || (
+          data.keys().hasAny(['registrationId'])
+          && existsAfter(
+            /databases/$(database)/documents/registrations/$(data.registrationId)
+          )
+          && getAfter(
+            /databases/$(database)/documents/registrations/$(data.registrationId)
+          ).data.eventId == data.eventId
+          && getAfter(
+            /databases/$(database)/documents/registrations/$(data.registrationId)
+          ).data.userId == data.userId
+          && (
+            request.auth.uid == data.userId
+            || isEventTeam(data.eventId)
+          )
+        );
+    }
+
+    function validProfile(data, uid) {
+      return data.keys().hasOnly([
+          'id',
+          'displayName',
+          'username',
+          'avatarAsset',
+          'bio',
+          'area',
+          'interests',
+          'followingIds',
+          'hostingEnabled',
+          'builderName',
+          'builderAbout',
+          'isAdmin',
+          'termsAccepted',
+          'primaryRole',
+          'profileComplete',
+          'discoveryDone',
+          'contactDiscoveryOptIn'
+        ])
+        && data.id == uid
+        && data.displayName is string
+        && data.username is string
+        && data.bio is string
+        && data.interests is list
+        && data.followingIds is list
+        && data.hostingEnabled is bool
+        && data.isAdmin is bool
+        && data.termsAccepted is bool
+        && data.profileComplete is bool
+        && data.discoveryDone is bool
+        && data.contactDiscoveryOptIn is bool;
+    }
+
+    function validEvent(data) {
+      return data.keys().hasOnly([
+          'id',
+          'hostId',
+          'coHostIds',
+          'title',
+          'description',
+          'topic',
+          'venue',
+          'area',
+          'start',
+          'end',
+          'visibility',
+          'coverAsset',
+          'capacity',
+          'featuredOnProfile',
+          'status',
+          'notices',
+          'seriesLabel'
+        ])
+        && data.id is string
+        && data.hostId is string
+        && data.coHostIds is list
+        && data.title is string
+        && data.title.size() >= 4
+        && data.title.size() <= 100
+        && data.description is string
+        && data.topic is string
+        && data.venue is string
+        && data.area is string
+        && data.start is timestamp
+        && data.end is timestamp
+        && data.end > data.start
+        && data.visibility in ['public', 'private']
+        && data.status in ['published', 'cancelled']
+        && data.notices is list
+        && data.featuredOnProfile is bool
+        && (
+          data.capacity == null
+          || (data.capacity is int && data.capacity > 0)
+        )
+        && (
+          data.coverAsset == null
+          || data.coverAsset is string
+        )
+        && (
+          data.seriesLabel == null
+          || data.seriesLabel is string
+        );
+    }
+
+    function eventTeamCanChange(eventId) {
+      return request.resource.data.hostId == resource.data.hostId
+        && (
+          resource.data.hostId == request.auth.uid
+          || request.resource.data.coHostIds == resource.data.coHostIds
+          || (
+            acceptedCoHost(eventId)
+            && request.resource.data.diff(resource.data).affectedKeys()
+              .hasOnly(['coHostIds'])
+            && request.resource.data.coHostIds.size()
+              == resource.data.coHostIds.size() + 1
+            && request.resource.data.coHostIds.hasAll(resource.data.coHostIds)
+            && request.resource.data.coHostIds.hasAny([request.auth.uid])
+          )
+        );
+    }
+
+    function validRegistrationCreate(data, uid) {
+      return data.keys().hasOnly([
+          'id',
+          'eventId',
+          'userId',
+          'status',
+          'requestedAt',
+          'decidedAt',
+          'passId'
+        ])
+        && data.id == ('reg_' + data.eventId + '_' + uid)
+        && data.userId == uid
+        && data.status == 'pending'
+        && canReadEvent(data.eventId)
+        && hasEvent(data.eventId)
+        && get(eventPath(data.eventId)).data.status == 'published'
+        && get(eventPath(data.eventId)).data.start > request.time;
+    }
+
+    function validPassAfterRegistration(data, passId) {
+      return existsAfter(
+          /databases/$(database)/documents/registrations/$(data.registrationId)
+        )
+        && getAfter(
+          /databases/$(database)/documents/registrations/$(data.registrationId)
+        ).data.eventId == data.eventId
+        && getAfter(
+          /databases/$(database)/documents/registrations/$(data.registrationId)
+        ).data.userId == data.userId
+        && getAfter(
+          /databases/$(database)/documents/registrations/$(data.registrationId)
+        ).data.status == 'approved'
+        && getAfter(
+          /databases/$(database)/documents/registrations/$(data.registrationId)
+        ).data.passId == passId;
+    }
+
+    function validRegistrationPass(data) {
+      return data.passId is string
+        && existsAfter(
+          /databases/$(database)/documents/passes/$(data.passId)
+        )
+        && getAfter(
+          /databases/$(database)/documents/passes/$(data.passId)
+        ).data.eventId == data.eventId
+        && getAfter(
+          /databases/$(database)/documents/passes/$(data.passId)
+        ).data.userId == data.userId
+        && getAfter(
+          /databases/$(database)/documents/passes/$(data.passId)
+        ).data.registrationId == data.id;
+    }
+
+    function validEventNotification(data) {
+      let registration = registrationPath(data.eventId, data.userId);
+      let invitationAccess = accessPath(data.eventId, data.userId);
+      return (
+          data.kind == 'joinRequest'
+          && exists(registrationPath(data.eventId, request.auth.uid))
+          && get(registrationPath(data.eventId, request.auth.uid)).data.status == 'pending'
+          && isEventTeam(data.eventId)
+          && (
+            get(eventPath(data.eventId)).data.hostId == data.userId
+            || get(eventPath(data.eventId)).data.coHostIds.hasAny([data.userId])
+          )
+        )
+        || (
+          data.kind in ['approved', 'declined']
+          && isEventTeam(data.eventId)
+          && exists(registration)
+          && get(registration).data.userId == data.userId
+          && get(registration).data.status
+            == (data.kind == 'approved' ? 'approved' : 'declined')
+        )
+        || (
+          data.kind in ['guestInvite', 'coHostInvite']
+          && exists(invitationAccess)
+          && get(invitationAccess).data.invitationId is string
+          && exists(
+            /databases/$(database)/documents/invitations/$(get(invitationAccess).data.invitationId)
+          )
+          && get(
+            /databases/$(database)/documents/invitations/$(get(invitationAccess).data.invitationId)
+          ).data.invitedById == request.auth.uid
+          && get(
+            /databases/$(database)/documents/invitations/$(get(invitationAccess).data.invitationId)
+          ).data.kind
+            == (data.kind == 'guestInvite' ? 'guest' : 'coHost')
+        )
+        || (
+          data.kind == 'coHostAccepted'
+          && exists(accessPath(data.eventId, request.auth.uid))
+          && get(accessPath(data.eventId, request.auth.uid)).data.invitationId is string
+          && exists(
+            /databases/$(database)/documents/invitations/$(get(accessPath(data.eventId, request.auth.uid)).data.invitationId)
+          )
+          && get(
+            /databases/$(database)/documents/invitations/$(get(accessPath(data.eventId, request.auth.uid)).data.invitationId)
+          ).data.invitedById == data.userId
+          && get(
+            /databases/$(database)/documents/invitations/$(get(accessPath(data.eventId, request.auth.uid)).data.invitationId)
+          ).data.inviteeId == request.auth.uid
+          && get(
+            /databases/$(database)/documents/invitations/$(get(accessPath(data.eventId, request.auth.uid)).data.invitationId)
+          ).data.kind == 'coHost'
+          && get(
+            /databases/$(database)/documents/invitations/$(get(accessPath(data.eventId, request.auth.uid)).data.invitationId)
+          ).data.status == 'accepted'
+        )
+        || (
+          data.kind == 'checkedIn'
+          && isEventTeam(data.eventId)
+          && hasAttendance(data.eventId, data.userId)
+        )
+        || (
+          data.kind in ['cancelled', 'notice']
+          && isEventTeam(data.eventId)
+          && exists(registration)
+          && get(registration).data.status in ['pending', 'approved']
+        )
+        || (
+          data.kind == 'reminder'
+          && isEventTeam(data.eventId)
+          && exists(registration)
+          && get(registration).data.status == 'approved'
+        )
+        || (
+          data.kind == 'tagged'
+          && exists(
+            /databases/$(database)/documents/posts/$(data.postId)
+          )
+          && get(
+            /databases/$(database)/documents/posts/$(data.postId)
+          ).data.authorId == request.auth.uid
+          && get(
+            /databases/$(database)/documents/posts/$(data.postId)
+          ).data.taggedIds.hasAny([data.userId])
+        )
+        || (
+          data.kind == 'comment'
+          && exists(
+            /databases/$(database)/documents/posts/$(data.postId)
+          )
+          && get(
+            /databases/$(database)/documents/posts/$(data.postId)
+          ).data.authorId == data.userId
+          && get(
+            /databases/$(database)/documents/posts/$(data.postId)
+          ).data.comments.size() > 0
+          && get(
+            /databases/$(database)/documents/posts/$(data.postId)
+          ).data.comments[
+            get(
+              /databases/$(database)/documents/posts/$(data.postId)
+            ).data.comments.size() - 1
+          ].authorId == request.auth.uid
+        );
+    }
+
+    match /profiles/{uid} {
+      allow read: if signedIn();
+      allow create: if self(uid)
+        && validProfile(request.resource.data, uid)
+        && request.resource.data.isAdmin == false
+        && usernameReserved(request.resource.data, uid);
+      allow update: if self(uid)
+        && validProfile(request.resource.data, uid)
+        && request.resource.data.isAdmin == resource.data.isAdmin
+        && usernameReserved(request.resource.data, uid);
+      allow delete: if false;
+    }
+
+    match /usernames/{username} {
+      allow read: if signedIn();
+      allow create: if signedIn()
+        && request.resource.data.keys().hasOnly(['userId'])
+        && request.resource.data.userId == request.auth.uid
+        && username.matches('^[a-z0-9_]{3,20}$')
+        && existsAfter(profilePath(request.auth.uid))
+        && getAfter(profilePath(request.auth.uid)).data.username == username
+        && !exists(usernamePath(username));
+      allow update: if signedIn()
+        && resource.data.userId == request.auth.uid
+        && request.resource.data.keys().hasOnly(['userId'])
+        && request.resource.data.userId == request.auth.uid
+        && existsAfter(profilePath(request.auth.uid))
+        && getAfter(profilePath(request.auth.uid)).data.username == username;
+      allow delete: if signedIn()
+        && resource.data.userId == request.auth.uid
+        && existsAfter(profilePath(request.auth.uid))
+        && getAfter(profilePath(request.auth.uid)).data.username != username;
+    }
+
+    match /events/{eventId} {
+      allow read: if signedIn()
+        && (
+          resource.data.visibility == 'public'
+          || resource.data.hostId == request.auth.uid
+          || resource.data.coHostIds.hasAny([request.auth.uid])
+          || exists(accessPath(eventId, request.auth.uid))
+        );
+      allow create: if signedIn()
+        && validEvent(request.resource.data)
+        && request.resource.data.id == eventId
+        && request.resource.data.hostId == request.auth.uid
+        && exists(profilePath(request.auth.uid))
+        && get(profilePath(request.auth.uid)).data.hostingEnabled == true
+        && request.resource.data.coHostIds == []
+        && request.resource.data.status == 'published';
+      allow update: if signedIn()
+        && validEvent(request.resource.data)
+        && request.resource.data.id == eventId
+        && isEventTeam(eventId)
+        && eventTeamCanChange(eventId);
+      allow delete: if false;
+    }
+
+    match /eventAccess/{accessId} {
+      allow read: if signedIn() && resource.data.userId == request.auth.uid;
+      allow create: if signedIn()
+        && request.resource.data.keys().hasOnly([
+          'eventId',
+          'userId',
+          'invitationId',
+          'registrationId'
+        ])
+        && request.resource.data.eventId is string
+        && request.resource.data.userId is string
+        && validEventAccessLink(request.resource.data);
+      allow update: if signedIn()
+        && request.resource.data.eventId == resource.data.eventId
+        && request.resource.data.userId == resource.data.userId
+        && request.resource.data.keys().hasOnly([
+          'eventId',
+          'userId',
+          'invitationId',
+          'registrationId'
+        ])
+        && validEventAccessLink(request.resource.data);
+      allow delete: if false;
+    }
+
+    match /invitations/{invitationId} {
+      allow read: if signedIn()
+        && (
+          resource.data.inviteeId == request.auth.uid
+          || resource.data.invitedById == request.auth.uid
+          || isEventTeam(resource.data.eventId)
+        );
+      allow create: if signedIn()
+        && request.resource.data.id == invitationId
+        && request.resource.data.invitedById == request.auth.uid
+        && isEventTeam(request.resource.data.eventId)
+        && exists(profilePath(request.resource.data.inviteeId))
+        && request.resource.data.kind in ['guest', 'coHost']
+        && request.resource.data.status == 'sent'
+        && request.resource.data.inviteeId != request.auth.uid
+        && (
+          request.resource.data.kind == 'guest'
+          || get(profilePath(request.resource.data.inviteeId)).data.hostingEnabled == true
+        );
+      allow update: if signedIn()
+        && resource.data.inviteeId == request.auth.uid
+        && resource.data.status == 'sent'
+        && request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['status'])
+        && request.resource.data.status in ['accepted', 'declined'];
+      allow delete: if false;
+    }
+
+    match /registrations/{registrationId} {
+      allow read: if signedIn()
+        && (
+          resource.data.userId == request.auth.uid
+          || isEventTeam(resource.data.eventId)
+          || (
+            hasEvent(resource.data.eventId)
+            && get(eventPath(resource.data.eventId)).data.visibility == 'public'
+          )
+        );
+      allow create: if signedIn()
+        && validRegistrationCreate(request.resource.data, request.auth.uid);
+      allow update: if signedIn()
+        && request.resource.data.keys().hasOnly([
+          'id',
+          'eventId',
+          'userId',
+          'status',
+          'requestedAt',
+          'decidedAt',
+          'passId'
+        ])
+        && request.resource.data.id == resource.data.id
+        && request.resource.data.eventId == resource.data.eventId
+        && request.resource.data.userId == resource.data.userId
+        && (
+          (
+            isEventTeam(resource.data.eventId)
+            && resource.data.status == 'pending'
+            && request.resource.data.status in ['approved', 'declined']
+            && request.resource.data.diff(resource.data).affectedKeys()
+              .hasOnly(['status', 'decidedAt', 'passId', 'note'])
+            && (
+              request.resource.data.status == 'declined'
+              || validRegistrationPass(request.resource.data)
+            )
+          )
+          || (
+            resource.data.userId == request.auth.uid
+            && request.resource.data.status == 'withdrawn'
+            && resource.data.status in ['pending', 'approved']
+            && request.resource.data.diff(resource.data).affectedKeys()
+              .hasOnly(['status', 'decidedAt', 'note'])
+          )
+          || (
+            resource.data.userId == request.auth.uid
+            && resource.data.status == 'withdrawn'
+            && request.resource.data.status == 'pending'
+            && request.resource.data.diff(resource.data).affectedKeys()
+              .hasOnly(['status', 'requestedAt', 'decidedAt', 'passId', 'note'])
+          )
+        );
+      allow delete: if false;
+    }
+
+    match /registrationNotes/{registrationId} {
+      allow read: if signedIn()
+        && (
+          resource.data.userId == request.auth.uid
+          || isEventTeam(resource.data.eventId)
+        );
+      allow create, update: if signedIn()
+        && request.resource.data.keys().hasOnly([
+          'registrationId',
+          'eventId',
+          'userId',
+          'note'
+        ])
+        && request.resource.data.registrationId == registrationId
+        && request.resource.data.note is string
+        && existsAfter(registrationPath(
+          request.resource.data.eventId,
+          request.resource.data.userId
+        ))
+        && getAfter(registrationPath(
+          request.resource.data.eventId,
+          request.resource.data.userId
+        )).data.id == registrationId
+        && (
+          request.auth.uid == request.resource.data.userId
+          || isEventTeam(request.resource.data.eventId)
+        );
+      allow delete: if false;
+    }
+
+    match /passes/{passId} {
+      allow read: if signedIn()
+        && (
+          resource.data.userId == request.auth.uid
+          || isEventTeam(resource.data.eventId)
+        );
+      allow create: if signedIn()
+        && request.resource.data.id == passId
+        && isEventTeam(request.resource.data.eventId)
+        && validPassAfterRegistration(request.resource.data, passId);
+      allow update: if signedIn()
+        && request.resource.data.id == resource.data.id
+        && request.resource.data.eventId == resource.data.eventId
+        && request.resource.data.userId == resource.data.userId
+        && request.resource.data.registrationId == resource.data.registrationId
+        && request.resource.data.token == resource.data.token
+        && request.resource.data.issuedAt == resource.data.issuedAt
+        && request.resource.data.revoked == true
+        && (
+          resource.data.userId == request.auth.uid
+          || isEventTeam(resource.data.eventId)
+        );
+      allow delete: if false;
+    }
+
+    match /attendance/{attendanceId} {
+      allow read: if signedIn()
+        && (
+          resource.data.userId == request.auth.uid
+          || isEventTeam(resource.data.eventId)
+          || (
+            hasEvent(resource.data.eventId)
+            && get(eventPath(resource.data.eventId)).data.visibility == 'public'
+          )
+        );
+      allow create: if signedIn()
+        && attendanceId == (request.resource.data.eventId + '_'
+          + request.resource.data.userId)
+        && request.resource.data.scannedById == request.auth.uid
+        && isEventTeam(request.resource.data.eventId)
+        && exists(
+          /databases/$(database)/documents/passes/$(request.resource.data.passId)
+        )
+        && get(
+          /databases/$(database)/documents/passes/$(request.resource.data.passId)
+        ).data.userId == request.resource.data.userId
+        && get(
+          /databases/$(database)/documents/passes/$(request.resource.data.passId)
+        ).data.eventId == request.resource.data.eventId
+        && get(
+          /databases/$(database)/documents/passes/$(request.resource.data.passId)
+        ).data.revoked == false
+        && validPassAfterRegistration(
+          get(
+            /databases/$(database)/documents/passes/$(request.resource.data.passId)
+          ).data,
+          request.resource.data.passId
+        );
+      allow update: if isAdmin()
+        && request.resource.data.eventId == resource.data.eventId
+        && request.resource.data.userId == resource.data.userId;
+      allow delete: if false;
+    }
+
+    match /posts/{postId} {
+      allow read: if signedIn() && canReadSocial(resource.data.eventId);
+      allow create: if signedIn()
+        && request.resource.data.id == postId
+        && request.resource.data.authorId == request.auth.uid
+        && hasAttendance(request.resource.data.eventId, request.auth.uid)
+        && hasEvent(request.resource.data.eventId)
+        && get(eventPath(request.resource.data.eventId)).data.status == 'published'
+        && get(eventPath(request.resource.data.eventId)).data.end <= request.time;
+      allow update: if signedIn()
+        && canReadSocial(resource.data.eventId)
+        && request.resource.data.id == resource.data.id
+        && request.resource.data.eventId == resource.data.eventId
+        && request.resource.data.authorId == resource.data.authorId
+        && (
+          (
+            resource.data.authorId == request.auth.uid
+            && request.resource.data.diff(resource.data).affectedKeys()
+              .hasOnly(['body', 'photoAsset', 'taggedIds'])
+          )
+          || (
+            request.resource.data.diff(resource.data).affectedKeys()
+              .hasOnly(['likedByIds'])
+            && (
+              (
+                request.resource.data.likedByIds.size()
+                  == resource.data.likedByIds.size() + 1
+                && request.resource.data.likedByIds.hasAll(resource.data.likedByIds)
+                && !resource.data.likedByIds.hasAny([request.auth.uid])
+                && request.resource.data.likedByIds.hasAny([request.auth.uid])
+              )
+              || (
+                request.resource.data.likedByIds.size()
+                  == resource.data.likedByIds.size() - 1
+                && resource.data.likedByIds.hasAll(request.resource.data.likedByIds)
+                && resource.data.likedByIds.hasAny([request.auth.uid])
+                && !request.resource.data.likedByIds.hasAny([request.auth.uid])
+              )
+            )
+          )
+          || (
+            request.resource.data.diff(resource.data).affectedKeys()
+              .hasOnly(['taggedIds'])
+            && resource.data.taggedIds.hasAny([request.auth.uid])
+            && !request.resource.data.taggedIds.hasAny([request.auth.uid])
+            && request.resource.data.taggedIds.size()
+              == resource.data.taggedIds.size() - 1
+          )
+          || (
+            request.resource.data.diff(resource.data).affectedKeys()
+              .hasOnly(['comments'])
+            && request.resource.data.comments.size()
+              == resource.data.comments.size() + 1
+            && request.resource.data.comments.hasAll(resource.data.comments)
+            && request.resource.data.comments[
+              request.resource.data.comments.size() - 1
+            ].authorId == request.auth.uid
+          )
+        );
+      allow delete: if signedIn()
+        && (
+          resource.data.authorId == request.auth.uid
+          || isAdmin()
+        );
+    }
+
+    match /reviews/{reviewId} {
+      allow read: if signedIn() && canReadSocial(resource.data.eventId);
+      allow create: if signedIn()
+        && reviewId == ('review_' + request.resource.data.eventId + '_'
+          + request.auth.uid)
+        && request.resource.data.id == reviewId
+        && request.resource.data.authorId == request.auth.uid
+        && request.resource.data.rating is int
+        && request.resource.data.rating >= 1
+        && request.resource.data.rating <= 5
+        && hasAttendance(request.resource.data.eventId, request.auth.uid)
+        && hasEvent(request.resource.data.eventId)
+        && get(eventPath(request.resource.data.eventId)).data.end <= request.time;
+      allow update, delete: if false;
+    }
+
+    match /notifications/{notificationId} {
+      allow read: if signedIn() && resource.data.userId == request.auth.uid;
+      allow create: if signedIn()
+        && request.resource.data.id == notificationId
+        && request.resource.data.read == false
+        && (
+          (
+            request.resource.data.eventId is string
+            && hasEvent(request.resource.data.eventId)
+            && validEventNotification(request.resource.data)
+          )
+          || (
+            request.resource.data.caseId is string
+            && exists(
+              /databases/$(database)/documents/cases/$(request.resource.data.caseId)
+            )
+            && (
+              (
+                request.resource.data.kind == 'supportAssigned'
+                && get(
+                  /databases/$(database)/documents/cases/$(request.resource.data.caseId)
+                ).data.assignedAdminId == request.resource.data.userId
+                && get(
+                  /databases/$(database)/documents/cases/$(request.resource.data.caseId)
+                ).data.reporterId == request.auth.uid
+              )
+              || (
+                request.resource.data.kind == 'supportUpdate'
+                && isAdmin()
+                && get(
+                  /databases/$(database)/documents/cases/$(request.resource.data.caseId)
+                ).data.reporterId == request.resource.data.userId
+              )
+            )
+          )
+        );
+      allow update: if signedIn()
+        && resource.data.userId == request.auth.uid
+        && request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['read'])
+        && request.resource.data.read == true;
+      allow delete: if false;
+    }
+
+    match /cases/{caseId} {
+      allow read: if signedIn()
+        && (
+          resource.data.reporterId == request.auth.uid
+          || (
+            isAdmin()
+            && resource.data.assignedAdminId == request.auth.uid
+          )
+        );
+      allow create: if signedIn()
+        && request.resource.data.id == caseId
+        && request.resource.data.reporterId == request.auth.uid
+        && request.resource.data.status == 'open'
+        && request.resource.data.outcome == null
+        && exists(profilePath(request.resource.data.assignedAdminId))
+        && get(profilePath(request.resource.data.assignedAdminId)).data.isAdmin == true;
+      allow update: if isAdmin()
+        && resource.data.assignedAdminId == request.auth.uid
+        && request.resource.data.reporterId == resource.data.reporterId
+        && request.resource.data.assignedAdminId == resource.data.assignedAdminId
+        && request.resource.data.status == 'closed'
+        && request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['status', 'outcome', 'decisionNote', 'closedAt', 'hostConfirmed']);
+      allow delete: if false;
+    }
+
     match /{document=**} {
       allow read, write: if false;
     }

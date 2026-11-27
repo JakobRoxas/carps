@@ -1,20 +1,15 @@
 import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:cloud_functions/cloud_functions.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 
 import '../models/carps_models.dart';
 import 'carps_firestore_codec.dart';
 import 'carps_repository.dart';
-import 'mock_carps_repository.dart';
 
-/// Firebase-backed cache. User profiles use direct Firestore access.
-/// Other CARPS features still use callable Functions.
+/// Firestore-backed cache for the synchronous CARPS service API.
 class FirebaseCarpsRepository extends CarpsRepository {
-  FirebaseCarpsRepository({required this.functions, required this._firestore});
+  FirebaseCarpsRepository({required this._firestore});
 
-  final FirebaseFunctions functions;
   final FirebaseFirestore _firestore;
   final CarpsFirestoreCodec _codec = const CarpsFirestoreCodec();
 
@@ -31,7 +26,6 @@ class FirebaseCarpsRepository extends CarpsRepository {
 
   Future<void> _writeTail = Future<void>.value();
   String? _persistenceError;
-  int _idCounter = 0;
 
   @override
   String? get persistenceError => _persistenceError;
@@ -43,14 +37,227 @@ class FirebaseCarpsRepository extends CarpsRepository {
     notifyListeners();
   }
 
-  /// Loads the currently authenticated user's profile from Firestore.
-  ///
-  /// Other CARPS collections are not loaded yet because their migration
-  /// to direct Firestore access is still pending.
-  Future<void> load() async {
-    final firebaseUser = FirebaseAuth.instance.currentUser;
+  /// Loads public data and the signed-in user's private or event-scoped data.
+  Future<void> load({required String userId, required String email}) async {
+    _clearCache(notify: false);
+    final registrationNotes = <String, String>{};
 
-    // Clear previous cached data.
+    try {
+      await _load(
+        _firestore.collection('profiles'),
+        (data) =>
+            _codec.decodeUser(data, email: data['id'] == userId ? email : ''),
+        (value) => _users[value.id] = value,
+      );
+      await _load(
+        _firestore
+            .collection('events')
+            .where('visibility', isEqualTo: EventVisibility.public.name),
+        _codec.decodeEvent,
+        (value) => _events[value.id] = value,
+      );
+      await _load(
+        _firestore.collection('events').where('hostId', isEqualTo: userId),
+        _codec.decodeEvent,
+        (value) => _events[value.id] = value,
+      );
+      await _load(
+        _firestore
+            .collection('events')
+            .where('coHostIds', arrayContains: userId),
+        _codec.decodeEvent,
+        (value) => _events[value.id] = value,
+      );
+
+      await _load(
+        _firestore
+            .collection('invitations')
+            .where('inviteeId', isEqualTo: userId),
+        _codec.decodeInvitation,
+        (value) => _invitations[value.id] = value,
+      );
+      await _load(
+        _firestore
+            .collection('invitations')
+            .where('invitedById', isEqualTo: userId),
+        _codec.decodeInvitation,
+        (value) => _invitations[value.id] = value,
+      );
+      await _load(
+        _firestore
+            .collection('registrations')
+            .where('userId', isEqualTo: userId),
+        _codec.decodeRegistration,
+        (value) => _registrations[value.id] = value,
+      );
+      await _load(
+        _firestore.collection('attendance').where('userId', isEqualTo: userId),
+        _codec.decodeAttendance,
+        (value) =>
+            _attendance[_attendanceId(value.eventId, value.userId)] = value,
+      );
+      await _load(
+        _firestore
+            .collection('registrationNotes')
+            .where('userId', isEqualTo: userId),
+        (data) =>
+            MapEntry(data['registrationId'] as String, data['note'] as String),
+        (value) => registrationNotes[value.key] = value.value,
+      );
+
+      final accessSnapshot = await _firestore
+          .collection('eventAccess')
+          .where('userId', isEqualTo: userId)
+          .get();
+      final linkedEventIds = <String>{
+        for (final document in accessSnapshot.docs)
+          if (document.data()['eventId'] case final String eventId) eventId,
+        ..._invitations.values.map((value) => value.eventId),
+        ..._registrations.values.map((value) => value.eventId),
+      };
+      for (final eventId in linkedEventIds) {
+        if (_events.containsKey(eventId)) continue;
+        final snapshot = await _firestore
+            .collection('events')
+            .doc(eventId)
+            .get();
+        final data = snapshot.data();
+        if (snapshot.exists && data != null) {
+          final event = _codec.decodeEvent(data);
+          _events[event.id] = event;
+        }
+      }
+
+      final eventIds = _events.values.toList(growable: false);
+      for (final event in eventIds) {
+        final isTeam = event.isHostingTeam(userId);
+        final canReadSocial =
+            !event.isPrivate || isTeam || _hasAttendance(event.id, userId);
+
+        if (isTeam) {
+          await _load(
+            _firestore
+                .collection('invitations')
+                .where('eventId', isEqualTo: event.id),
+            _codec.decodeInvitation,
+            (value) => _invitations[value.id] = value,
+          );
+        }
+        if (isTeam || !event.isPrivate) {
+          await _load(
+            _firestore
+                .collection('registrations')
+                .where('eventId', isEqualTo: event.id),
+            _codec.decodeRegistration,
+            (value) => _registrations[value.id] = value,
+          );
+        }
+        if (isTeam) {
+          await _load(
+            _firestore
+                .collection('registrationNotes')
+                .where('eventId', isEqualTo: event.id),
+            (data) => MapEntry(
+              data['registrationId'] as String,
+              data['note'] as String,
+            ),
+            (value) => registrationNotes[value.key] = value.value,
+          );
+        }
+        if (isTeam) {
+          await _load(
+            _firestore
+                .collection('passes')
+                .where('eventId', isEqualTo: event.id),
+            _codec.decodePass,
+            (value) => _passes[value.id] = value,
+          );
+        }
+        if (isTeam || !event.isPrivate) {
+          await _load(
+            _firestore
+                .collection('attendance')
+                .where('eventId', isEqualTo: event.id),
+            _codec.decodeAttendance,
+            (value) =>
+                _attendance[_attendanceId(value.eventId, value.userId)] = value,
+          );
+        }
+        if (canReadSocial) {
+          await _load(
+            _firestore
+                .collection('posts')
+                .where('eventId', isEqualTo: event.id),
+            _codec.decodePost,
+            (value) => _posts[value.id] = value,
+          );
+          await _load(
+            _firestore
+                .collection('reviews')
+                .where('eventId', isEqualTo: event.id),
+            _codec.decodeReview,
+            (value) => _reviews[value.id] = value,
+          );
+        }
+      }
+
+      await _load(
+        _firestore.collection('passes').where('userId', isEqualTo: userId),
+        _codec.decodePass,
+        (value) => _passes[value.id] = value,
+      );
+      await _load(
+        _firestore
+            .collection('notifications')
+            .where('userId', isEqualTo: userId),
+        _codec.decodeNotification,
+        (value) => _notifications[value.id] = value,
+      );
+      await _load(
+        _firestore.collection('cases').where('reporterId', isEqualTo: userId),
+        _codec.decodeCase,
+        (value) => _cases[value.id] = value,
+      );
+      if (_users[userId]?.isAdmin ?? false) {
+        await _load(
+          _firestore
+              .collection('cases')
+              .where('assignedAdminId', isEqualTo: userId),
+          _codec.decodeCase,
+          (value) => _cases[value.id] = value,
+        );
+      }
+      for (final registration in _registrations.values.toList()) {
+        final note = registrationNotes[registration.id];
+        if (note != null) {
+          _registrations[registration.id] = registration.copyWith(note: note);
+        }
+      }
+      clearPersistenceError();
+      notifyListeners();
+    } on FirebaseException catch (error) {
+      _recordPersistenceError(error.message ?? error.code);
+      rethrow;
+    }
+  }
+
+  Future<void> _load<T>(
+    Query<Map<String, dynamic>> query,
+    T Function(Map<String, dynamic>) decode,
+    void Function(T) cache,
+  ) async {
+    final snapshot = await query.get();
+    for (final document in snapshot.docs) {
+      cache(decode(document.data()));
+    }
+  }
+
+  @override
+  void clear() {
+    _clearCache(notify: true);
+  }
+
+  void _clearCache({required bool notify}) {
     _users.clear();
     _events.clear();
     _invitations.clear();
@@ -61,156 +268,154 @@ class FirebaseCarpsRepository extends CarpsRepository {
     _reviews.clear();
     _notifications.clear();
     _cases.clear();
-
-    // Temporarily restore the demo world for existing UI screens.
-    final demo = MockCarpsRepository.seeded(DateTime.now());
-
-    _users.addEntries(demo.users.map((value) => MapEntry(value.id, value)));
-    _events.addEntries(demo.events.map((value) => MapEntry(value.id, value)));
-    _invitations.addEntries(
-      demo.invitations.map((value) => MapEntry(value.id, value)),
-    );
-    _registrations.addEntries(
-      demo.registrations.map((value) => MapEntry(value.id, value)),
-    );
-    _passes.addEntries(demo.passes.map((value) => MapEntry(value.id, value)));
-    _attendance.addEntries(
-      demo.attendance.map(
-        (value) => MapEntry(_attendanceId(value.eventId, value.userId), value),
-      ),
-    );
-    _posts.addEntries(demo.posts.map((value) => MapEntry(value.id, value)));
-    _reviews.addEntries(demo.reviews.map((value) => MapEntry(value.id, value)));
-    _notifications.addEntries(
-      demo.notifications.map((value) => MapEntry(value.id, value)),
-    );
-    _cases.addEntries(demo.cases.map((value) => MapEntry(value.id, value)));
-
-    // If no Firebase account is signed in, display the demo world only.
-    if (firebaseUser == null) {
-      clearPersistenceError();
-      notifyListeners();
-      return;
-    }
-
-    // Load the actual Firebase user's profile.
-    try {
-      final snapshot = await _firestore
-          .collection('users')
-          .doc(firebaseUser.uid)
-          .get();
-
-      if (snapshot.exists) {
-        final data = snapshot.data();
-
-        if (data != null) {
-          final profile = _codec.decodeUser(data);
-          _users[profile.id] = profile;
-        }
-      }
-
-      clearPersistenceError();
-      notifyListeners();
-    } on FirebaseException catch (error) {
-      _recordPersistenceError(error.message ?? error.code);
-      rethrow;
-    }
+    _persistenceError = null;
+    if (notify) notifyListeners();
   }
+
+  bool _hasAttendance(String eventId, String userId) => _attendance.values.any(
+    (record) => record.eventId == eventId && record.userId == userId,
+  );
 
   @override
-  String nextId(String prefix) {
-    _idCounter++;
-
-    return '${prefix}_${_firestore.collection('_ids').doc().id}_$_idCounter';
-  }
-
-  // ------------------------------------------------------------
-  // USERS
-  // ------------------------------------------------------------
+  String nextId(String prefix) =>
+      '${prefix}_${_firestore.collection('_ids').doc().id}';
 
   @override
   List<UserProfile> get users => List.unmodifiable(_users.values);
-
   @override
   UserProfile? user(String id) => _users[id];
-
   @override
   void saveUser(UserProfile value) {
+    final previous = _users[value.id];
     _users[value.id] = value;
     notifyListeners();
-
-    _enqueue(
-      () => _firestore
-          .collection('users')
-          .doc(value.id)
-          .set(_codec.encodeUser(value)),
-    );
+    _enqueue(() async {
+      final batch = _firestore.batch();
+      batch.set(
+        _firestore.collection('profiles').doc(value.id),
+        _codec.encodeUser(value),
+      );
+      if (previous != null && previous.username != value.username) {
+        batch.delete(_firestore.collection('usernames').doc(previous.username));
+      }
+      batch.set(_firestore.collection('usernames').doc(value.username), {
+        'userId': value.id,
+      });
+      await batch.commit();
+    });
   }
-
-  // ------------------------------------------------------------
-  // EVENTS
-  // ------------------------------------------------------------
 
   @override
   List<CarpsEvent> get events => List.unmodifiable(_events.values);
-
   @override
   CarpsEvent? event(String id) => _events[id];
-
   @override
   void saveEvent(CarpsEvent value) {
     _events[value.id] = value;
     notifyListeners();
-
     _write('events', value.id, _codec.encodeEvent(value));
   }
 
-  // ------------------------------------------------------------
-  // INVITATIONS
-  // ------------------------------------------------------------
-
   @override
   List<Invitation> get invitations => List.unmodifiable(_invitations.values);
-
   @override
   void saveInvitation(Invitation value) {
     _invitations[value.id] = value;
     notifyListeners();
-
-    _write('invitations', value.id, _codec.encodeInvitation(value));
+    _enqueue(() async {
+      final batch = _firestore.batch();
+      batch.set(
+        _firestore.collection('invitations').doc(value.id),
+        _codec.encodeInvitation(value),
+      );
+      batch.set(
+        _firestore
+            .collection('eventAccess')
+            .doc(_eventAccessId(value.eventId, value.inviteeId)),
+        {
+          'eventId': value.eventId,
+          'userId': value.inviteeId,
+          'invitationId': value.id,
+        },
+        SetOptions(merge: true),
+      );
+      await batch.commit();
+    });
   }
-
-  // ------------------------------------------------------------
-  // REGISTRATIONS
-  // ------------------------------------------------------------
 
   @override
   List<Registration> get registrations =>
       List.unmodifiable(_registrations.values);
-
   @override
   void saveRegistration(Registration value) {
     _registrations[value.id] = value;
     notifyListeners();
-
-    _write('registrations', value.id, _codec.encodeRegistration(value));
+    _enqueue(() async {
+      final batch = _firestore.batch();
+      batch.set(
+        _firestore.collection('registrations').doc(value.id),
+        _codec.encodeRegistration(value),
+      );
+      batch.set(
+        _firestore.collection('registrationNotes').doc(value.id),
+        _registrationNoteData(value),
+      );
+      batch.set(
+        _firestore
+            .collection('eventAccess')
+            .doc(_eventAccessId(value.eventId, value.userId)),
+        {
+          'eventId': value.eventId,
+          'userId': value.userId,
+          'registrationId': value.id,
+        },
+        SetOptions(merge: true),
+      );
+      await batch.commit();
+    });
   }
 
-  // ------------------------------------------------------------
-  // GUEST PASSES
-  // ------------------------------------------------------------
+  @override
+  void saveApprovedRegistration(Registration registration, GuestPass pass) {
+    _registrations[registration.id] = registration;
+    _passes[pass.id] = pass;
+    notifyListeners();
+    _enqueue(() async {
+      final batch = _firestore.batch();
+      batch.set(
+        _firestore.collection('passes').doc(pass.id),
+        _codec.encodePass(pass),
+      );
+      batch.set(
+        _firestore.collection('registrations').doc(registration.id),
+        _codec.encodeRegistration(registration),
+      );
+      batch.set(
+        _firestore.collection('registrationNotes').doc(registration.id),
+        _registrationNoteData(registration),
+      );
+      batch.set(
+        _firestore
+            .collection('eventAccess')
+            .doc(_eventAccessId(registration.eventId, registration.userId)),
+        {
+          'eventId': registration.eventId,
+          'userId': registration.userId,
+          'registrationId': registration.id,
+        },
+        SetOptions(merge: true),
+      );
+      await batch.commit();
+    });
+  }
 
   @override
   List<GuestPass> get passes => List.unmodifiable(_passes.values);
-
   @override
   GuestPass? passByToken(String token) {
     for (final value in _passes.values) {
-      if (value.token == token) {
-        return value;
-      }
+      if (value.token == token) return value;
     }
-
     return null;
   }
 
@@ -218,24 +423,16 @@ class FirebaseCarpsRepository extends CarpsRepository {
   void savePass(GuestPass value) {
     _passes[value.id] = value;
     notifyListeners();
-
     _write('passes', value.id, _codec.encodePass(value));
   }
 
-  // ------------------------------------------------------------
-  // ATTENDANCE
-  // ------------------------------------------------------------
-
   @override
   List<Attendance> get attendance => List.unmodifiable(_attendance.values);
-
   @override
   void saveAttendance(Attendance value) {
     final id = _attendanceId(value.eventId, value.userId);
-
     _attendance[id] = value;
     notifyListeners();
-
     _write('attendance', id, _codec.encodeAttendance(value));
   }
 
@@ -247,35 +444,34 @@ class FirebaseCarpsRepository extends CarpsRepository {
     if (record != null) {
       _attendance[_attendanceId(record.eventId, record.userId)] = record;
     }
-
     _cases[supportCase.id] = supportCase;
     notifyListeners();
-
-    _enqueue(
-      () => functions.httpsCallable('resolveCarpsAttendanceCase').call<void>({
-        'caseData': _codec.encodeCase(supportCase),
-        'attendanceData': record == null
-            ? null
-            : _codec.encodeAttendance(record),
-      }),
-    );
+    _enqueue(() async {
+      final batch = _firestore.batch();
+      batch.set(
+        _firestore.collection('cases').doc(supportCase.id),
+        _codec.encodeCase(supportCase),
+      );
+      if (record != null) {
+        batch.set(
+          _firestore
+              .collection('attendance')
+              .doc(_attendanceId(record.eventId, record.userId)),
+          _codec.encodeAttendance(record),
+        );
+      }
+      await batch.commit();
+    });
   }
-
-  // ------------------------------------------------------------
-  // POSTS
-  // ------------------------------------------------------------
 
   @override
   List<ExperiencePost> get posts => List.unmodifiable(_posts.values);
-
   @override
   ExperiencePost? post(String id) => _posts[id];
-
   @override
   void savePost(ExperiencePost value) {
     _posts[value.id] = value;
     notifyListeners();
-
     _write('posts', value.id, _codec.encodePost(value));
   }
 
@@ -283,92 +479,50 @@ class FirebaseCarpsRepository extends CarpsRepository {
   void deletePost(String id) {
     _posts.remove(id);
     notifyListeners();
-
-    _enqueue(
-      () => functions.httpsCallable('deleteCarpsPost').call<void>({'id': id}),
-    );
+    _enqueue(() async {
+      await _firestore.collection('posts').doc(id).delete();
+    });
   }
-
-  // ------------------------------------------------------------
-  // REVIEWS
-  // ------------------------------------------------------------
 
   @override
   List<EventReview> get reviews => List.unmodifiable(_reviews.values);
-
   @override
   void saveReview(EventReview value) {
     _reviews[value.id] = value;
     notifyListeners();
-
     _write('reviews', value.id, _codec.encodeReview(value));
   }
-
-  // ------------------------------------------------------------
-  // NOTIFICATIONS
-  // ------------------------------------------------------------
 
   @override
   List<AppNotification> get notifications =>
       List.unmodifiable(_notifications.values);
-
   @override
   void saveNotification(AppNotification value) {
     _notifications[value.id] = value;
     notifyListeners();
-
     _write('notifications', value.id, _codec.encodeNotification(value));
   }
 
-  // ------------------------------------------------------------
-  // SUPPORT CASES
-  // ------------------------------------------------------------
-
   @override
   List<SupportCase> get cases => List.unmodifiable(_cases.values);
-
   @override
   void saveCase(SupportCase value) {
     _cases[value.id] = value;
     notifyListeners();
-
     _write('cases', value.id, _codec.encodeCase(value));
   }
 
-  // ------------------------------------------------------------
-  // LEGACY CLOUD FUNCTION WRITES
-  // ------------------------------------------------------------
-
   void _write(String collection, String id, Map<String, Object?> data) {
-    if (collection == 'notifications') {
-      _enqueue(
-        () => functions.httpsCallable('createCarpsNotification').call<void>({
-          'data': data,
-        }),
-      );
-      return;
-    }
-
-    _enqueue(
-      () => functions.httpsCallable('saveCarpsDocument').call<void>({
-        'collection': collection,
-        'id': id,
-        'data': data,
-      }),
-    );
+    _enqueue(() async {
+      await _firestore.collection(collection).doc(id).set(data);
+    });
   }
-
-  // ------------------------------------------------------------
-  // WRITE QUEUE
-  // ------------------------------------------------------------
 
   void _enqueue(Future<void> Function() write) {
     _writeTail = _writeTail.then((_) async {
       try {
         await write();
         clearPersistenceError();
-      } on FirebaseFunctionsException catch (error) {
-        _recordPersistenceError(error.message ?? error.code);
       } on FirebaseException catch (error) {
         _recordPersistenceError(error.message ?? error.code);
       }
@@ -377,25 +531,26 @@ class FirebaseCarpsRepository extends CarpsRepository {
 
   Future<void> flushPendingWrites() async {
     await _writeTail;
-
     if (_persistenceError case final error?) {
-      throw StateError('Firebase write failed: $error');
+      throw StateError('Firestore write failed: $error');
     }
   }
-
-  // ------------------------------------------------------------
-  // ERROR HANDLING
-  // ------------------------------------------------------------
 
   void _recordPersistenceError(String message) {
     _persistenceError = message;
     notifyListeners();
   }
 
-  // ------------------------------------------------------------
-  // HELPERS
-  // ------------------------------------------------------------
-
   static String _attendanceId(String eventId, String userId) =>
       '${eventId}_$userId';
+
+  static String _eventAccessId(String eventId, String userId) =>
+      '${eventId}_$userId';
+
+  static Map<String, Object?> _registrationNoteData(Registration value) => {
+    'registrationId': value.id,
+    'eventId': value.eventId,
+    'userId': value.userId,
+    'note': value.note,
+  };
 }

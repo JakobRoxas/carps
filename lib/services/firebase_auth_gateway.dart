@@ -15,6 +15,7 @@ class FirebaseAuthGateway {
       email: email.trim(),
       password: password,
     );
+    await _loadAccount(credential.user!);
     return _loadOrCreateProfile(credential.user!);
   }
 
@@ -29,6 +30,7 @@ class FirebaseAuthGateway {
       email: email.trim(),
       password: password,
     );
+    await _loadAccount(credential.user!);
     return _loadOrCreateProfile(credential.user!);
   }
 
@@ -38,6 +40,7 @@ class FirebaseAuthGateway {
     if (user == null) {
       throw const RuleViolation('Google sign-in did not return an account.');
     }
+    await _loadAccount(user);
     return _loadOrCreateProfile(user);
   }
 
@@ -48,15 +51,29 @@ class FirebaseAuthGateway {
     await auth.sendPasswordResetEmail(email: email.trim());
   }
 
-  Future<void> signOut() => auth.signOut();
-
-  Future<UserProfile?> restoreSession() async {
-    final user = auth.currentUser;
-    return user == null ? null : _loadOrCreateProfile(user);
+  Future<void> signOut() async {
+    StateError? writeError;
+    try {
+      await repository.flushPendingWrites();
+    } on StateError catch (error) {
+      writeError = error;
+    }
+    await auth.signOut();
+    repository.clear();
+    if (writeError != null) throw writeError;
   }
 
+  Future<UserProfile?> restoreSession() async {
+    final user = await auth.authStateChanges().first;
+    if (user == null) return null;
+    await _loadAccount(user);
+    return _loadOrCreateProfile(user);
+  }
+
+  Future<void> _loadAccount(User user) =>
+      repository.load(userId: user.uid, email: user.email ?? '');
+
   Future<UserProfile> _loadOrCreateProfile(User user) async {
-    await repository.load();
     final existing = repository.user(user.uid);
     if (existing != null) return existing;
 

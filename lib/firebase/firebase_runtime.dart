@@ -5,8 +5,5 @@ import '../firebase_options.dart';
 class FirebaseRuntime {
   const FirebaseRuntime._();
 
-  static const enabled = true;
-  static const useEmulators = false;
-
   static FirebaseOptions get options => DefaultFirebaseOptions.currentPlatform;
 }

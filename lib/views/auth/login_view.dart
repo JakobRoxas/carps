@@ -1,10 +1,10 @@
 import 'dart:math' as math;
 
-import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
+
 import '../../core/carps_icons.dart';
 
 import '../../controllers/app_controller.dart';
@@ -21,8 +21,12 @@ class _LoginLogo extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final logo = ClipOval(
-      child: Image.asset('assets/images/koi_ring.jpg',
-          width: 64, height: 64, semanticLabel: 'CARPS koi ring logo'),
+      child: Image.asset(
+        'assets/images/koi_ring.jpg',
+        width: 64,
+        height: 64,
+        semanticLabel: 'CARPS koi ring logo',
+      ),
     );
     if (MediaQuery.disableAnimationsOf(context)) return logo;
     return TweenAnimationBuilder<double>(
@@ -30,10 +34,8 @@ class _LoginLogo extends StatelessWidget {
       duration: const Duration(milliseconds: 750),
       curve: Curves.easeOutCubic,
       child: logo,
-      builder: (context, turns, child) => Transform.rotate(
-        angle: turns * 2 * math.pi,
-        child: child,
-      ),
+      builder: (context, turns, child) =>
+          Transform.rotate(angle: turns * 2 * math.pi, child: child),
     );
   }
 }
@@ -74,21 +76,24 @@ class _LoginViewState extends State<LoginView> {
     try {
       final user = app.authGateway != null
           ? (_signUp
-              ? await app.authGateway!
-                  .signUpWithEmail(_email.text, _password.text)
-              : await app.authGateway!
-                  .signInWithEmail(_email.text, _password.text))
+                ? await app.authGateway!.signUpWithEmail(
+                    _email.text,
+                    _password.text,
+                  )
+                : await app.authGateway!.signInWithEmail(
+                    _email.text,
+                    _password.text,
+                  ))
           : (_signUp
-              ? app.service.signUp(_email.text, _password.text)
-              : app.service.logIn(_email.text, _password.text));
+                ? app.service.signUp(_email.text, _password.text)
+                : app.service.logIn(_email.text, _password.text));
       app.signIn(user.id); // router redirects to onboarding or Home
     } on RuleViolation catch (e) {
       setState(() => _error = e.message);
     } on FirebaseAuthException catch (e) {
       setState(() => _error = firebaseAuthErrorMessage(e));
-    } on FirebaseFunctionsException catch (e) {
-      setState(() => _error =
-          e.message ?? 'Could not load your CARPS account. Please try again.');
+    } on FirebaseException catch (e) {
+      setState(() => _error = e.message ?? 'Could not load your CARPS data.');
     } on StateError catch (e) {
       setState(() => _error = e.message);
     } finally {
@@ -108,10 +113,11 @@ class _LoginViewState extends State<LoginView> {
         app.signIn(user.id);
       } on FirebaseAuthException catch (e) {
         if (mounted) setState(() => _error = firebaseAuthErrorMessage(e));
-      } on FirebaseFunctionsException catch (e) {
+      } on FirebaseException catch (e) {
         if (mounted) {
-          setState(() => _error = e.message ??
-              'Could not load your CARPS account. Please try again.');
+          setState(
+            () => _error = e.message ?? 'Could not load your CARPS data.',
+          );
         }
       } on RuleViolation catch (e) {
         if (mounted) setState(() => _error = e.message);
@@ -129,7 +135,9 @@ class _LoginViewState extends State<LoginView> {
     if (picked == null || !mounted) return;
     if (picked == '__new__') {
       final user = app.service.signUp(
-          'newmember${app.repo.users.length}@gmail.com', 'carps-google-sim');
+        'newmember${app.repo.users.length}@gmail.com',
+        'carps-google-sim',
+      );
       app.signIn(user.id);
     } else {
       app.signIn(picked);
@@ -436,15 +444,21 @@ class _GoogleChooser extends StatelessWidget {
         shrinkWrap: true,
         padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
         children: [
-          Row(children: [
-            Text('Choose an account',
-                style: Theme.of(context).textTheme.titleLarge),
-            const Spacer(),
-            const SimulatedTag(text: 'Simulated Google'),
-          ]),
+          Row(
+            children: [
+              Text(
+                'Choose an account',
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
+              const Spacer(),
+              const SimulatedTag(text: 'Simulated Google'),
+            ],
+          ),
           const SizedBox(height: 4),
-          Text('No real Google sign-in happens in this build.',
-              style: Theme.of(context).textTheme.bodySmall),
+          Text(
+            'No real Google sign-in happens in this build.',
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
           const SizedBox(height: 8),
           for (final u in users.where((u) => u.displayName.isNotEmpty))
             ListTile(

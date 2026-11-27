@@ -9,7 +9,6 @@ class CarpsFirestoreCodec {
     'id': value.id,
     'displayName': value.displayName,
     'username': value.username,
-    'email': value.email,
     'avatarAsset': value.avatarAsset,
     'bio': value.bio,
     'area': value.area,
@@ -26,26 +25,27 @@ class CarpsFirestoreCodec {
     'contactDiscoveryOptIn': value.contactDiscoveryOptIn,
   };
 
-  UserProfile decodeUser(Map<String, dynamic> data) => UserProfile(
-    id: _string(data, 'id'),
-    displayName: _string(data, 'displayName'),
-    username: _string(data, 'username'),
-    email: _string(data, 'email'),
-    avatarAsset: _nullableString(data, 'avatarAsset'),
-    bio: _string(data, 'bio'),
-    area: _nullableString(data, 'area'),
-    interests: _strings(data, 'interests'),
-    followingIds: _strings(data, 'followingIds'),
-    hostingEnabled: _bool(data, 'hostingEnabled'),
-    builderName: _nullableString(data, 'builderName'),
-    builderAbout: _nullableString(data, 'builderAbout'),
-    isAdmin: _bool(data, 'isAdmin'),
-    termsAccepted: _bool(data, 'termsAccepted'),
-    primaryRole: _enumOrNull(PrimaryRole.values, data['primaryRole']),
-    profileComplete: _bool(data, 'profileComplete'),
-    discoveryDone: _bool(data, 'discoveryDone'),
-    contactDiscoveryOptIn: _bool(data, 'contactDiscoveryOptIn'),
-  );
+  UserProfile decodeUser(Map<String, dynamic> data, {String email = ''}) =>
+      UserProfile(
+        id: _string(data, 'id'),
+        displayName: _string(data, 'displayName'),
+        username: _string(data, 'username'),
+        email: email,
+        avatarAsset: _nullableString(data, 'avatarAsset'),
+        bio: _string(data, 'bio'),
+        area: _nullableString(data, 'area'),
+        interests: _strings(data, 'interests'),
+        followingIds: _strings(data, 'followingIds'),
+        hostingEnabled: _bool(data, 'hostingEnabled'),
+        builderName: _nullableString(data, 'builderName'),
+        builderAbout: _nullableString(data, 'builderAbout'),
+        isAdmin: _bool(data, 'isAdmin'),
+        termsAccepted: _bool(data, 'termsAccepted'),
+        primaryRole: _enumOrNull(PrimaryRole.values, data['primaryRole']),
+        profileComplete: _bool(data, 'profileComplete'),
+        discoveryDone: _bool(data, 'discoveryDone'),
+        contactDiscoveryOptIn: _bool(data, 'contactDiscoveryOptIn'),
+      );
 
   Map<String, Object?> encodeEvent(CarpsEvent value) => {
     'id': value.id,
@@ -56,8 +56,8 @@ class CarpsFirestoreCodec {
     'topic': value.topic,
     'venue': value.venue,
     'area': value.area,
-    'start': value.start.toIso8601String(),
-    'end': value.end.toIso8601String(),
+    'start': Timestamp.fromDate(value.start),
+    'end': Timestamp.fromDate(value.end),
     'visibility': value.visibility.name,
     'coverAsset': value.coverAsset,
     'capacity': value.capacity,
@@ -94,7 +94,7 @@ class CarpsFirestoreCodec {
     'invitedById': value.invitedById,
     'kind': value.kind.name,
     'status': value.status.name,
-    'createdAt': value.createdAt.toIso8601String(),
+    'createdAt': Timestamp.fromDate(value.createdAt),
   };
 
   Invitation decodeInvitation(Map<String, dynamic> data) => Invitation(
@@ -112,9 +112,10 @@ class CarpsFirestoreCodec {
     'eventId': value.eventId,
     'userId': value.userId,
     'status': value.status.name,
-    'requestedAt': value.requestedAt.toIso8601String(),
-    'note': value.note,
-    'decidedAt': value.decidedAt?.toIso8601String(),
+    'requestedAt': Timestamp.fromDate(value.requestedAt),
+    'decidedAt': value.decidedAt == null
+        ? null
+        : Timestamp.fromDate(value.decidedAt!),
     'passId': value.passId,
   };
 
@@ -124,7 +125,7 @@ class CarpsFirestoreCodec {
     userId: _string(data, 'userId'),
     status: _enum(RegistrationStatus.values, data['status']),
     requestedAt: _date(data['requestedAt']),
-    note: _string(data, 'note'),
+    note: data['note'] is String ? data['note'] as String : '',
     decidedAt: _nullableDate(data['decidedAt']),
     passId: _nullableString(data, 'passId'),
   );
@@ -135,7 +136,7 @@ class CarpsFirestoreCodec {
     'eventId': value.eventId,
     'userId': value.userId,
     'registrationId': value.registrationId,
-    'issuedAt': value.issuedAt.toIso8601String(),
+    'issuedAt': Timestamp.fromDate(value.issuedAt),
     'revoked': value.revoked,
   };
 
@@ -152,7 +153,7 @@ class CarpsFirestoreCodec {
   Map<String, Object?> encodeAttendance(Attendance value) => {
     'eventId': value.eventId,
     'userId': value.userId,
-    'arrivedAt': value.arrivedAt.toIso8601String(),
+    'arrivedAt': Timestamp.fromDate(value.arrivedAt),
     'scannedById': value.scannedById,
     'passId': value.passId,
   };
@@ -174,7 +175,7 @@ class CarpsFirestoreCodec {
     'taggedIds': value.taggedIds,
     'likedByIds': value.likedByIds,
     'comments': value.comments.map(encodeComment).toList(),
-    'createdAt': value.createdAt.toIso8601String(),
+    'createdAt': Timestamp.fromDate(value.createdAt),
   };
 
   ExperiencePost decodePost(Map<String, dynamic> data) => ExperiencePost(
@@ -195,7 +196,7 @@ class CarpsFirestoreCodec {
     'authorId': value.authorId,
     'rating': value.rating,
     'text': value.text,
-    'createdAt': value.createdAt.toIso8601String(),
+    'createdAt': Timestamp.fromDate(value.createdAt),
   };
 
   EventReview decodeReview(Map<String, dynamic> data) => EventReview(
@@ -213,7 +214,7 @@ class CarpsFirestoreCodec {
     'kind': value.kind.name,
     'title': value.title,
     'body': value.body,
-    'createdAt': value.createdAt.toIso8601String(),
+    'createdAt': Timestamp.fromDate(value.createdAt),
     'eventId': value.eventId,
     'postId': value.postId,
     'caseId': value.caseId,
@@ -242,12 +243,14 @@ class CarpsFirestoreCodec {
     'category': value.category,
     'details': value.details,
     'link': value.link,
-    'createdAt': value.createdAt.toIso8601String(),
+    'createdAt': Timestamp.fromDate(value.createdAt),
     'assignedAdminId': value.assignedAdminId,
     'status': value.status.name,
     'outcome': value.outcome?.name,
     'decisionNote': value.decisionNote,
-    'closedAt': value.closedAt?.toIso8601String(),
+    'closedAt': value.closedAt == null
+        ? null
+        : Timestamp.fromDate(value.closedAt!),
     'hostConfirmed': value.hostConfirmed,
   };
 
@@ -269,7 +272,7 @@ class CarpsFirestoreCodec {
   Map<String, Object?> encodeNotice(EventNotice value) => {
     'id': value.id,
     'text': value.text,
-    'createdAt': value.createdAt.toIso8601String(),
+    'createdAt': Timestamp.fromDate(value.createdAt),
     'isVenueChange': value.isVenueChange,
   };
 
@@ -284,7 +287,7 @@ class CarpsFirestoreCodec {
     'id': value.id,
     'authorId': value.authorId,
     'body': value.body,
-    'createdAt': value.createdAt.toIso8601String(),
+    'createdAt': Timestamp.fromDate(value.createdAt),
     'parentId': value.parentId,
   };
 

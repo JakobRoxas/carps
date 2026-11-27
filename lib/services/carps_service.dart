@@ -562,7 +562,7 @@ class CarpsService {
     if (blocker != null) throw RuleViolation(blocker);
     final existing = registrationFor(eventId, userId);
     final reg = Registration(
-      id: existing?.id ?? repo.nextId('reg'),
+      id: existing?.id ?? 'reg_${eventId}_$userId',
       eventId: eventId,
       userId: userId,
       status: RegistrationStatus.pending,
@@ -606,9 +606,14 @@ class CarpsService {
       registrationId: reg.id,
       issuedAt: now,
     );
-    repo.savePass(pass);
-    repo.saveRegistration(reg.copyWith(
-        status: RegistrationStatus.approved, decidedAt: now, passId: pass.id));
+    repo.saveApprovedRegistration(
+      reg.copyWith(
+        status: RegistrationStatus.approved,
+        decidedAt: now,
+        passId: pass.id,
+      ),
+      pass,
+    );
     _notify(reg.userId, NotificationKind.approved, 'You\'re in! Pass ready',
         '${event.title}. Open My RSVPs to show your QR pass at the venue.',
         eventId: event.id);
@@ -919,7 +924,7 @@ class CarpsService {
       throw RuleViolation(blocker.replaceAll('post', 'review'));
     }
     final review = EventReview(
-      id: repo.nextId('rev'),
+      id: 'review_${eventId}_$userId',
       eventId: eventId,
       authorId: userId,
       rating: rating,

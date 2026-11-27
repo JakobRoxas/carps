@@ -280,14 +280,14 @@ class Invitation {
   final DateTime createdAt;
 
   Invitation copyWith({InvitationStatus? status}) => Invitation(
-        id: id,
-        eventId: eventId,
-        inviteeId: inviteeId,
-        invitedById: invitedById,
-        kind: kind,
-        createdAt: createdAt,
-        status: status ?? this.status,
-      );
+    id: id,
+    eventId: eventId,
+    inviteeId: inviteeId,
+    invitedById: invitedById,
+    kind: kind,
+    createdAt: createdAt,
+    status: status ?? this.status,
+  );
 }
 
 class Registration {
@@ -319,19 +319,19 @@ class Registration {
 
   Registration copyWith({
     RegistrationStatus? status,
+    String? note,
     DateTime? decidedAt,
     String? passId,
-  }) =>
-      Registration(
-        id: id,
-        eventId: eventId,
-        userId: userId,
-        status: status ?? this.status,
-        requestedAt: requestedAt,
-        note: note,
-        decidedAt: decidedAt ?? this.decidedAt,
-        passId: passId ?? this.passId,
-      );
+  }) => Registration(
+    id: id,
+    eventId: eventId,
+    userId: userId,
+    status: status ?? this.status,
+    requestedAt: requestedAt,
+    note: note ?? this.note,
+    decidedAt: decidedAt ?? this.decidedAt,
+    passId: passId ?? this.passId,
+  );
 }
 
 /// A unique QR pass for one guest at one event.
@@ -357,14 +357,14 @@ class GuestPass {
   final bool revoked;
 
   GuestPass revoke() => GuestPass(
-        id: id,
-        token: token,
-        eventId: eventId,
-        userId: userId,
-        registrationId: registrationId,
-        issuedAt: issuedAt,
-        revoked: true,
-      );
+    id: id,
+    token: token,
+    eventId: eventId,
+    userId: userId,
+    registrationId: registrationId,
+    issuedAt: issuedAt,
+    revoked: true,
+  );
 }
 
 /// Proof of presence, created only by a valid first scan.
@@ -433,18 +433,17 @@ class ExperiencePost {
     List<String>? taggedIds,
     List<String>? likedByIds,
     List<PostComment>? comments,
-  }) =>
-      ExperiencePost(
-        id: id,
-        eventId: eventId,
-        authorId: authorId,
-        body: body,
-        photoAsset: photoAsset,
-        createdAt: createdAt,
-        taggedIds: taggedIds ?? this.taggedIds,
-        likedByIds: likedByIds ?? this.likedByIds,
-        comments: comments ?? this.comments,
-      );
+  }) => ExperiencePost(
+    id: id,
+    eventId: eventId,
+    authorId: authorId,
+    body: body,
+    photoAsset: photoAsset,
+    createdAt: createdAt,
+    taggedIds: taggedIds ?? this.taggedIds,
+    likedByIds: likedByIds ?? this.likedByIds,
+    comments: comments ?? this.comments,
+  );
 }
 
 /// Post-event rating/review. Separate from posts on purpose.
@@ -496,18 +495,18 @@ class AppNotification {
   final bool emailSimulated;
 
   AppNotification markRead() => AppNotification(
-        id: id,
-        userId: userId,
-        kind: kind,
-        title: title,
-        body: body,
-        createdAt: createdAt,
-        eventId: eventId,
-        postId: postId,
-        caseId: caseId,
-        read: true,
-        emailSimulated: emailSimulated,
-      );
+    id: id,
+    userId: userId,
+    kind: kind,
+    title: title,
+    body: body,
+    createdAt: createdAt,
+    eventId: eventId,
+    postId: postId,
+    caseId: caseId,
+    read: true,
+    emailSimulated: emailSimulated,
+  );
 }
 
 /// Settings → Help issue report, routed to an assigned admin.
@@ -547,21 +546,20 @@ class SupportCase {
     required String note,
     required DateTime at,
     bool hostConfirmed = false,
-  }) =>
-      SupportCase(
-        id: id,
-        reporterId: reporterId,
-        category: category,
-        details: details,
-        link: link,
-        createdAt: createdAt,
-        assignedAdminId: assignedAdminId,
-        status: CaseStatus.closed,
-        outcome: outcome,
-        decisionNote: note,
-        closedAt: at,
-        hostConfirmed: hostConfirmed,
-      );
+  }) => SupportCase(
+    id: id,
+    reporterId: reporterId,
+    category: category,
+    details: details,
+    link: link,
+    createdAt: createdAt,
+    assignedAdminId: assignedAdminId,
+    status: CaseStatus.closed,
+    outcome: outcome,
+    decisionNote: note,
+    closedAt: at,
+    hostConfirmed: hostConfirmed,
+  );
 }
 
 /// Per-guest attendance history entry (distinguishes bookings from arrivals).

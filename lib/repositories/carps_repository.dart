@@ -5,12 +5,14 @@ import '../models/carps_models.dart';
 /// Storage boundary for CARPS.
 ///
 /// Widgets never talk to this directly: they go through `CarpsService`, which
-/// enforces the product rules. A Firebase implementation can replace
-/// [MockCarpsRepository] by keeping a listener-backed local cache for the
-/// synchronous reads below and writing through to Firestore in the setters.
+/// enforces the product rules. Implementations keep a local cache for the
+/// synchronous reads below and persist writes to their backing store.
 ///
 /// The repository notifies listeners after every write so the UI rebuilds.
 abstract class CarpsRepository extends ChangeNotifier {
+  /// Clears the local cache without deleting records from a remote store.
+  void clear();
+
   /// Last remote persistence failure, if any. Mock repositories have none.
   String? get persistenceError => null;
 
@@ -33,6 +35,10 @@ abstract class CarpsRepository extends ChangeNotifier {
   // Registrations: one record per guest per event, shared by guest and host.
   List<Registration> get registrations;
   void saveRegistration(Registration registration);
+  void saveApprovedRegistration(Registration registration, GuestPass pass) {
+    savePass(pass);
+    saveRegistration(registration);
+  }
 
   // Passes
   List<GuestPass> get passes;
@@ -43,7 +49,9 @@ abstract class CarpsRepository extends ChangeNotifier {
   List<Attendance> get attendance;
   void saveAttendance(Attendance record);
   void resolveAttendanceCorrection(
-      SupportCase supportCase, Attendance? record) {
+    SupportCase supportCase,
+    Attendance? record,
+  ) {
     if (record != null) saveAttendance(record);
     saveCase(supportCase);
   }
