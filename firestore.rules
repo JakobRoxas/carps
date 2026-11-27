@@ -304,7 +304,7 @@ service cloud.firestore {
           data.kind == 'joinRequest'
           && exists(registrationPath(data.eventId, request.auth.uid))
           && get(registrationPath(data.eventId, request.auth.uid)).data.status == 'pending'
-          && isEventTeam(data.eventId)
+          && !isEventTeam(data.eventId)
           && (
             get(eventPath(data.eventId)).data.hostId == data.userId
             || get(eventPath(data.eventId)).data.coHostIds.hasAny([data.userId])

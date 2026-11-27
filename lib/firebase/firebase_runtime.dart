@@ -6,4 +6,8 @@ class FirebaseRuntime {
   const FirebaseRuntime._();
 
   static FirebaseOptions get options => DefaultFirebaseOptions.currentPlatform;
+  static const useEmulators = bool.fromEnvironment(
+    'USE_FIREBASE_EMULATORS',
+    defaultValue: false,
+  );
 }

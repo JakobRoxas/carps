@@ -16,10 +16,16 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   final firebaseApp = await Firebase.initializeApp(
     options: FirebaseRuntime.options,
+    name: FirebaseRuntime.useEmulators ? 'carps-emulator' : null,
   );
   final auth = FirebaseAuth.instanceFor(app: firebaseApp);
+  final firestore = FirebaseFirestore.instanceFor(app: firebaseApp);
+  if (FirebaseRuntime.useEmulators) {
+    await auth.useAuthEmulator('localhost', 9099);
+    firestore.useFirestoreEmulator('localhost', 8080);
+  }
   final repo = FirebaseCarpsRepository(
-    firestore: FirebaseFirestore.instanceFor(app: firebaseApp),
+    firestore: firestore,
   );
   final authGateway = FirebaseAuthGateway(auth: auth, repository: repo);
   final restoredUserId = (await authGateway.restoreSession())?.id;

@@ -197,6 +197,24 @@ test('users can create pending registrations only as themselves', async () => {
   });
   await assertSucceeds(batch.commit());
   await assertSucceeds(
+    setDoc(doc(memberDb, 'notifications/join_request_host1'), {
+      id: 'join_request_host1',
+      userId: 'host1',
+      eventId: 'public1',
+      kind: 'joinRequest',
+      read: false,
+    }),
+  );
+  await assertFails(
+    setDoc(doc(memberDb, 'notifications/join_request_outsider'), {
+      id: 'join_request_outsider',
+      userId: 'outsider1',
+      eventId: 'public1',
+      kind: 'joinRequest',
+      read: false,
+    }),
+  );
+  await assertSucceeds(
     getDocs(
       query(
         collection(memberDb, 'registrations'),

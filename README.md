@@ -141,6 +141,31 @@ progress persists across sign-ins.
 Cloud Firestore has a free quota, but usage beyond the free limits may incur
 charges. Cloud Functions are not deployed or required by this setup.
 
+### Test with local Firebase emulators
+
+This keeps test sign-ins and Firestore writes off the live project. Start the
+Auth and Firestore emulators in one terminal:
+
+```bash
+npx firebase-tools emulators:start --project carps-d19cf --only auth,firestore
+```
+
+In another terminal, run the web app with emulator mode enabled:
+
+```bash
+flutter run -d web-server --web-hostname localhost --web-port 5000 --dart-define=USE_FIREBASE_EMULATORS=true
+```
+
+Open `http://localhost:5000` and use a test account. Emulator data is local and
+is discarded when the emulators stop. Normal app runs continue using live
+Firebase; emulator mode is opt-in.
+
+To run Firestore rule tests against a local emulator:
+
+```bash
+npx firebase-tools emulators:exec --project carps-d19cf --only firestore "npm test --prefix test/firestore_rules"
+```
+
 ## Local development
 
 Install dependencies and run the Flutter app:
