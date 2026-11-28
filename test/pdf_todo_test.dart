@@ -1,7 +1,6 @@
 import 'package:carps/controllers/app_controller.dart';
 import 'package:carps/core/widgets/carps_widgets.dart';
 import 'package:carps/main.dart';
-import 'package:carps/models/carps_models.dart';
 import 'package:carps/repositories/mock_carps_repository.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';

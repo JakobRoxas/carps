@@ -1,4 +1,4 @@
-library carps_domain_operations;
+library;
 
 import '../models/carps_models.dart';
 import '../repositories/carps_repository.dart';

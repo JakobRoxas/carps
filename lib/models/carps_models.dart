@@ -2,6 +2,7 @@
 ///
 /// Feature code can import this file to access the domain types while each
 /// model remains defined in a focused, maintainable file.
+library;
 export 'carps_enums.dart';
 export 'user_profile.dart';
 export 'event_models.dart';

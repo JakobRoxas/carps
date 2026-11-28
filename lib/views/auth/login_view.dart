@@ -52,6 +52,7 @@ class _LoginViewState extends State<LoginView> {
   final _password = TextEditingController();
   bool _signUp = false;
   bool _obscure = true;
+  bool _keepSignedIn = true;
   bool _busy = false;
   String? _error;
 
@@ -70,8 +71,16 @@ class _LoginViewState extends State<LoginView> {
     if (!mounted) return;
     try {
       final user = _signUp
-          ? await app.auth.signUp(_email.text, _password.text)
-          : await app.auth.signIn(_email.text, _password.text);
+          ? await app.auth.signUp(
+              _email.text,
+              _password.text,
+              keepSignedIn: _keepSignedIn,
+            )
+          : await app.auth.signIn(
+              _email.text,
+              _password.text,
+              keepSignedIn: _keepSignedIn,
+            );
       app.signIn(user.id); // router redirects to onboarding or Home
     } on RuleViolation catch (e) {
       setState(() => _error = e.message);
@@ -90,7 +99,9 @@ class _LoginViewState extends State<LoginView> {
         _busy = true;
       });
       try {
-        final user = await app.auth.signInWithGoogle();
+        final user = await app.auth.signInWithGoogle(
+          keepSignedIn: _keepSignedIn,
+        );
         app.signIn(user.id);
       } on StateError catch (e) {
         if (mounted) setState(() => _error = e.message);
@@ -202,7 +213,7 @@ class _LoginViewState extends State<LoginView> {
                           shape: const StadiumBorder(),
                           child: InkWell(
                             customBorder: const StadiumBorder(),
-                            onTap: _google,
+                            onTap: _busy ? null : _google,
                             child: SizedBox(
                               height: 48,
                               child: Row(
@@ -319,6 +330,25 @@ class _LoginViewState extends State<LoginView> {
                           },
                         ),
                         const SizedBox(height: 8),
+                        Material(
+                          color: d.canvas,
+                          child: CheckboxListTile(
+                            key: const ValueKey('keep-signed-in'),
+                            contentPadding: EdgeInsets.zero,
+                            dense: true,
+                            controlAffinity: ListTileControlAffinity.leading,
+                            title: const Text(
+                              'Keep me logged in',
+                              style: TextStyle(fontSize: 14),
+                            ),
+                            value: _keepSignedIn,
+                            onChanged: _busy
+                                ? null
+                                : (value) => setState(
+                                    () => _keepSignedIn = value ?? false,
+                                  ),
+                          ),
+                        ),
                         Row(
                           children: [
                             Icon(

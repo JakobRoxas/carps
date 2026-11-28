@@ -10,4 +10,8 @@ class FirebaseRuntime {
     'USE_FIREBASE_EMULATORS',
     defaultValue: false,
   );
+  static const useMockData = bool.fromEnvironment(
+    'USE_MOCK_DATA',
+    defaultValue: false,
+  );
 }

@@ -25,7 +25,11 @@ class FirebaseCarpsRepository extends CarpsRepository {
   final Map<String, SupportCase> _cases = {};
 
   Future<void> _writeTail = Future<void>.value();
+  StreamSubscription<QuerySnapshot<Map<String, dynamic>>>?
+  _notificationSubscription;
   String? _persistenceError;
+  String? _activeUserId;
+  String _activeEmail = '';
 
   @override
   String? get persistenceError => _persistenceError;
@@ -39,194 +43,223 @@ class FirebaseCarpsRepository extends CarpsRepository {
 
   /// Loads public data and the signed-in user's private or event-scoped data.
   Future<void> load({required String userId, required String email}) async {
+    await _stopNotificationListener();
+    _activeUserId = userId;
+    _activeEmail = email;
     _clearCache(notify: false);
     final registrationNotes = <String, String>{};
+    var loadSucceeded = false;
 
     try {
-      await _load(
-        _firestore.collection('profiles'),
-        (data) =>
-            _codec.decodeUser(data, email: data['id'] == userId ? email : ''),
-        (value) => _users[value.id] = value,
-      );
-      await _load(
-        _firestore
-            .collection('events')
-            .where('visibility', isEqualTo: EventVisibility.public.name),
-        _codec.decodeEvent,
-        (value) => _events[value.id] = value,
-      );
-      await _load(
-        _firestore.collection('events').where('hostId', isEqualTo: userId),
-        _codec.decodeEvent,
-        (value) => _events[value.id] = value,
-      );
-      await _load(
-        _firestore
-            .collection('events')
-            .where('coHostIds', arrayContains: userId),
-        _codec.decodeEvent,
-        (value) => _events[value.id] = value,
-      );
-
-      await _load(
-        _firestore
-            .collection('invitations')
-            .where('inviteeId', isEqualTo: userId),
-        _codec.decodeInvitation,
-        (value) => _invitations[value.id] = value,
-      );
-      await _load(
-        _firestore
-            .collection('invitations')
-            .where('invitedById', isEqualTo: userId),
-        _codec.decodeInvitation,
-        (value) => _invitations[value.id] = value,
-      );
-      await _load(
-        _firestore
-            .collection('registrations')
-            .where('userId', isEqualTo: userId),
-        _codec.decodeRegistration,
-        (value) => _registrations[value.id] = value,
-      );
-      await _load(
-        _firestore.collection('attendance').where('userId', isEqualTo: userId),
-        _codec.decodeAttendance,
-        (value) =>
-            _attendance[_attendanceId(value.eventId, value.userId)] = value,
-      );
-      await _load(
-        _firestore
-            .collection('registrationNotes')
-            .where('userId', isEqualTo: userId),
-        (data) =>
-            MapEntry(data['registrationId'] as String, data['note'] as String),
-        (value) => registrationNotes[value.key] = value.value,
-      );
-
-      final accessSnapshot = await _firestore
+      final accessSnapshotFuture = _firestore
           .collection('eventAccess')
           .where('userId', isEqualTo: userId)
           .get();
+      await Future.wait([
+        _load(
+          _firestore.collection('profiles'),
+          (data) =>
+              _codec.decodeUser(data, email: data['id'] == userId ? email : ''),
+          (value) => _users[value.id] = value,
+        ),
+        _load(
+          _firestore
+              .collection('events')
+              .where('visibility', isEqualTo: EventVisibility.public.name),
+          _codec.decodeEvent,
+          (value) => _events[value.id] = value,
+        ),
+        _load(
+          _firestore.collection('events').where('hostId', isEqualTo: userId),
+          _codec.decodeEvent,
+          (value) => _events[value.id] = value,
+        ),
+        _load(
+          _firestore
+              .collection('events')
+              .where('coHostIds', arrayContains: userId),
+          _codec.decodeEvent,
+          (value) => _events[value.id] = value,
+        ),
+        _load(
+          _firestore
+              .collection('invitations')
+              .where('inviteeId', isEqualTo: userId),
+          _codec.decodeInvitation,
+          (value) => _invitations[value.id] = value,
+        ),
+        _load(
+          _firestore
+              .collection('invitations')
+              .where('invitedById', isEqualTo: userId),
+          _codec.decodeInvitation,
+          (value) => _invitations[value.id] = value,
+        ),
+        _load(
+          _firestore
+              .collection('registrations')
+              .where('userId', isEqualTo: userId),
+          _codec.decodeRegistration,
+          (value) => _registrations[value.id] = value,
+        ),
+        _load(
+          _firestore
+              .collection('attendance')
+              .where('userId', isEqualTo: userId),
+          _codec.decodeAttendance,
+          (value) =>
+              _attendance[_attendanceId(value.eventId, value.userId)] = value,
+        ),
+        _load(
+          _firestore
+              .collection('registrationNotes')
+              .where('userId', isEqualTo: userId),
+          (data) => MapEntry(
+            data['registrationId'] as String,
+            data['note'] as String,
+          ),
+          (value) => registrationNotes[value.key] = value.value,
+        ),
+        accessSnapshotFuture.then((_) {}),
+      ]);
+      final accessSnapshot = await accessSnapshotFuture;
       final linkedEventIds = <String>{
         for (final document in accessSnapshot.docs)
           if (document.data()['eventId'] case final String eventId) eventId,
         ..._invitations.values.map((value) => value.eventId),
         ..._registrations.values.map((value) => value.eventId),
       };
-      for (final eventId in linkedEventIds) {
-        if (_events.containsKey(eventId)) continue;
-        final snapshot = await _firestore
-            .collection('events')
-            .doc(eventId)
-            .get();
-        final data = snapshot.data();
-        if (snapshot.exists && data != null) {
-          final event = _codec.decodeEvent(data);
-          _events[event.id] = event;
-        }
-      }
+      await _runConcurrent([
+        for (final eventId in linkedEventIds)
+          if (!_events.containsKey(eventId))
+            () async {
+              final snapshot = await _firestore
+                  .collection('events')
+                  .doc(eventId)
+                  .get();
+              final data = snapshot.data();
+              if (snapshot.exists && data != null) {
+                final event = _codec.decodeEvent(data);
+                _events[event.id] = event;
+              }
+            },
+      ]);
 
       final eventIds = _events.values.toList(growable: false);
+      final eventLoads = <Future<void> Function()>[];
       for (final event in eventIds) {
         final isTeam = event.isHostingTeam(userId);
         final canReadSocial =
             !event.isPrivate || isTeam || _hasAttendance(event.id, userId);
 
         if (isTeam) {
-          await _load(
-            _firestore
-                .collection('invitations')
-                .where('eventId', isEqualTo: event.id),
-            _codec.decodeInvitation,
-            (value) => _invitations[value.id] = value,
-          );
-        }
-        if (isTeam || !event.isPrivate) {
-          await _load(
-            _firestore
-                .collection('registrations')
-                .where('eventId', isEqualTo: event.id),
-            _codec.decodeRegistration,
-            (value) => _registrations[value.id] = value,
-          );
-        }
-        if (isTeam) {
-          await _load(
-            _firestore
-                .collection('registrationNotes')
-                .where('eventId', isEqualTo: event.id),
-            (data) => MapEntry(
-              data['registrationId'] as String,
-              data['note'] as String,
+          eventLoads.add(
+            () => _load(
+              _firestore
+                  .collection('invitations')
+                  .where('eventId', isEqualTo: event.id),
+              _codec.decodeInvitation,
+              (value) => _invitations[value.id] = value,
             ),
-            (value) => registrationNotes[value.key] = value.value,
-          );
-        }
-        if (isTeam) {
-          await _load(
-            _firestore
-                .collection('passes')
-                .where('eventId', isEqualTo: event.id),
-            _codec.decodePass,
-            (value) => _passes[value.id] = value,
           );
         }
         if (isTeam || !event.isPrivate) {
-          await _load(
-            _firestore
-                .collection('attendance')
-                .where('eventId', isEqualTo: event.id),
-            _codec.decodeAttendance,
-            (value) =>
-                _attendance[_attendanceId(value.eventId, value.userId)] = value,
+          eventLoads.add(
+            () => _load(
+              _firestore
+                  .collection('registrations')
+                  .where('eventId', isEqualTo: event.id),
+              _codec.decodeRegistration,
+              (value) => _registrations[value.id] = value,
+            ),
+          );
+        }
+        if (isTeam) {
+          eventLoads.add(
+            () => _load(
+              _firestore
+                  .collection('registrationNotes')
+                  .where('eventId', isEqualTo: event.id),
+              (data) => MapEntry(
+                data['registrationId'] as String,
+                data['note'] as String,
+              ),
+              (value) => registrationNotes[value.key] = value.value,
+            ),
+          );
+        }
+        if (isTeam) {
+          eventLoads.add(
+            () => _load(
+              _firestore
+                  .collection('passes')
+                  .where('eventId', isEqualTo: event.id),
+              _codec.decodePass,
+              (value) => _passes[value.id] = value,
+            ),
+          );
+        }
+        if (isTeam || !event.isPrivate) {
+          eventLoads.add(
+            () => _load(
+              _firestore
+                  .collection('attendance')
+                  .where('eventId', isEqualTo: event.id),
+              _codec.decodeAttendance,
+              (value) =>
+                  _attendance[_attendanceId(value.eventId, value.userId)] =
+                      value,
+            ),
           );
         }
         if (canReadSocial) {
-          await _load(
-            _firestore
-                .collection('posts')
-                .where('eventId', isEqualTo: event.id),
-            _codec.decodePost,
-            (value) => _posts[value.id] = value,
+          eventLoads.add(
+            () => _load(
+              _firestore
+                  .collection('posts')
+                  .where('eventId', isEqualTo: event.id),
+              _codec.decodePost,
+              (value) => _posts[value.id] = value,
+            ),
           );
-          await _load(
-            _firestore
-                .collection('reviews')
-                .where('eventId', isEqualTo: event.id),
-            _codec.decodeReview,
-            (value) => _reviews[value.id] = value,
+          eventLoads.add(
+            () => _load(
+              _firestore
+                  .collection('reviews')
+                  .where('eventId', isEqualTo: event.id),
+              _codec.decodeReview,
+              (value) => _reviews[value.id] = value,
+            ),
           );
         }
       }
+      await _runConcurrent(eventLoads);
 
-      await _load(
-        _firestore.collection('passes').where('userId', isEqualTo: userId),
-        _codec.decodePass,
-        (value) => _passes[value.id] = value,
-      );
-      await _load(
-        _firestore
-            .collection('notifications')
-            .where('userId', isEqualTo: userId),
-        _codec.decodeNotification,
-        (value) => _notifications[value.id] = value,
-      );
-      await _load(
-        _firestore.collection('cases').where('reporterId', isEqualTo: userId),
-        _codec.decodeCase,
-        (value) => _cases[value.id] = value,
-      );
-      if (_users[userId]?.isAdmin ?? false) {
-        await _load(
-          _firestore
-              .collection('cases')
-              .where('assignedAdminId', isEqualTo: userId),
+      final accountLoads = <Future<void>>[
+        _load(
+          _firestore.collection('passes').where('userId', isEqualTo: userId),
+          _codec.decodePass,
+          (value) => _passes[value.id] = value,
+        ),
+        _watchNotifications(userId),
+        _load(
+          _firestore.collection('cases').where('reporterId', isEqualTo: userId),
           _codec.decodeCase,
           (value) => _cases[value.id] = value,
+        ),
+      ];
+      if (_users[userId]?.isAdmin ?? false) {
+        accountLoads.add(
+          _load(
+            _firestore
+                .collection('cases')
+                .where('assignedAdminId', isEqualTo: userId),
+            _codec.decodeCase,
+            (value) => _cases[value.id] = value,
+          ),
         );
       }
+      await Future.wait(accountLoads);
       for (final registration in _registrations.values.toList()) {
         final note = registrationNotes[registration.id];
         if (note != null) {
@@ -235,9 +268,89 @@ class FirebaseCarpsRepository extends CarpsRepository {
       }
       clearPersistenceError();
       notifyListeners();
+      loadSucceeded = true;
     } on FirebaseException catch (error) {
       _recordPersistenceError(error.message ?? error.code);
       rethrow;
+    } finally {
+      if (!loadSucceeded) await _stopNotificationListener();
+    }
+  }
+
+  Future<void> _watchNotifications(String userId) {
+    final firstSnapshot = Completer<void>();
+    _notificationSubscription = _firestore
+        .collection('notifications')
+        .where('userId', isEqualTo: userId)
+        .snapshots()
+        .listen(
+          (snapshot) {
+            if (_activeUserId != userId) {
+              if (!firstSnapshot.isCompleted) {
+                firstSnapshot.completeError(
+                  StateError('Notification listener lost its signed-in user.'),
+                );
+              }
+              return;
+            }
+            try {
+              final notifications = snapshot.docs.map((document) {
+                final notification = _codec.decodeNotification(document.data());
+                return MapEntry(notification.id, notification);
+              }).toList();
+              _notifications
+                ..clear()
+                ..addEntries(notifications);
+            } catch (error, stackTrace) {
+              if (!firstSnapshot.isCompleted) {
+                firstSnapshot.completeError(error, stackTrace);
+              } else {
+                _recordPersistenceError(
+                  'Could not decode Firestore notifications: $error',
+                );
+              }
+              return;
+            }
+            notifyListeners();
+            if (!firstSnapshot.isCompleted) firstSnapshot.complete();
+          },
+          onError: (Object error) {
+            if (!firstSnapshot.isCompleted) {
+              firstSnapshot.completeError(error);
+            } else if (_activeUserId == userId) {
+              final message = error is FirebaseException
+                  ? error.message ?? error.code
+                  : error.toString();
+              _recordPersistenceError(message);
+            }
+          },
+        );
+    return firstSnapshot.future;
+  }
+
+  Future<void> _stopNotificationListener() async {
+    final subscription = _notificationSubscription;
+    _notificationSubscription = null;
+    await subscription?.cancel();
+  }
+
+  @override
+  Future<void> refresh() {
+    final userId = _activeUserId;
+    if (userId == null) {
+      throw StateError(
+        'Cannot refresh Firebase data without a signed-in user.',
+      );
+    }
+    return load(userId: userId, email: _activeEmail);
+  }
+
+  Future<void> _runConcurrent(List<Future<void> Function()> tasks) async {
+    const maxConcurrent = 12;
+    for (var start = 0; start < tasks.length; start += maxConcurrent) {
+      await Future.wait(
+        tasks.skip(start).take(maxConcurrent).map((task) => task()),
+      );
     }
   }
 
@@ -254,6 +367,9 @@ class FirebaseCarpsRepository extends CarpsRepository {
 
   @override
   void clear() {
+    _activeUserId = null;
+    _activeEmail = '';
+    unawaited(_stopNotificationListener());
     _clearCache(notify: true);
   }
 

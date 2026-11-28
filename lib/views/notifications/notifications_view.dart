@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+
 import '../../core/carps_icons.dart';
 
 import '../../controllers/app_controller.dart';
@@ -40,11 +41,13 @@ class _NotificationsViewState extends State<NotificationsView> {
     final c = context.carps;
     return CarpsPage(
       title: 'Notifications',
+      onRefresh: app.refresh,
       children: [
         if (list.isEmpty)
           const EmptyState(
-              title: 'All quiet',
-              message: 'Approvals, invitations, reminders and tags show up here.'),
+            title: 'All quiet',
+            message: 'Approvals, invitations, reminders and tags show up here.',
+          ),
         for (final n in list)
           Padding(
             padding: const EdgeInsets.only(bottom: 8),
@@ -64,18 +67,25 @@ class _NotificationsViewState extends State<NotificationsView> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(n.title, style: Theme.of(context).textTheme.titleSmall),
+                        Text(
+                          n.title,
+                          style: Theme.of(context).textTheme.titleSmall,
+                        ),
                         const SizedBox(height: 2),
                         Text(n.body, style: const TextStyle(fontSize: 13)),
                         const SizedBox(height: 4),
-                        Row(children: [
-                          Text(relative(n.createdAt, app.notifications.now),
-                              style: Theme.of(context).textTheme.bodySmall),
-                          if (n.emailSimulated) ...[
-                            const SizedBox(width: 8),
-                            const SimulatedTag(text: 'Email simulated'),
+                        Row(
+                          children: [
+                            Text(
+                              relative(n.createdAt, app.notifications.now),
+                              style: Theme.of(context).textTheme.bodySmall,
+                            ),
+                            if (n.emailSimulated) ...[
+                              const SizedBox(width: 8),
+                              const SimulatedTag(text: 'Email simulated'),
+                            ],
                           ],
-                        ]),
+                        ),
                       ],
                     ),
                   ),
@@ -85,7 +95,9 @@ class _NotificationsViewState extends State<NotificationsView> {
                       height: 8,
                       margin: const EdgeInsets.only(top: 6),
                       decoration: BoxDecoration(
-                          color: c.accentFill, shape: BoxShape.circle),
+                        color: c.accentFill,
+                        shape: BoxShape.circle,
+                      ),
                     ),
                 ],
               ),
@@ -96,21 +108,21 @@ class _NotificationsViewState extends State<NotificationsView> {
   }
 
   IconData _icon(NotificationKind k) => switch (k) {
-        NotificationKind.joinRequest => CarpsIcons.userPlus,
-        NotificationKind.approved => CarpsIcons.ticket,
-        NotificationKind.declined => CarpsIcons.xCircle,
-        NotificationKind.guestInvite => CarpsIcons.envelopeSimple,
-        NotificationKind.coHostInvite => CarpsIcons.crown,
-        NotificationKind.coHostAccepted => CarpsIcons.handshake,
-        NotificationKind.notice => CarpsIcons.megaphone,
-        NotificationKind.reminder => CarpsIcons.bellRinging,
-        NotificationKind.checkedIn => CarpsIcons.sealCheck,
-        NotificationKind.tagged => CarpsIcons.tag,
-        NotificationKind.comment => CarpsIcons.chatCircle,
-        NotificationKind.cancelled => CarpsIcons.prohibit,
-        NotificationKind.supportUpdate => CarpsIcons.lifebuoy,
-        NotificationKind.supportAssigned => CarpsIcons.shieldStar,
-      };
+    NotificationKind.joinRequest => CarpsIcons.userPlus,
+    NotificationKind.approved => CarpsIcons.ticket,
+    NotificationKind.declined => CarpsIcons.xCircle,
+    NotificationKind.guestInvite => CarpsIcons.envelopeSimple,
+    NotificationKind.coHostInvite => CarpsIcons.crown,
+    NotificationKind.coHostAccepted => CarpsIcons.handshake,
+    NotificationKind.notice => CarpsIcons.megaphone,
+    NotificationKind.reminder => CarpsIcons.bellRinging,
+    NotificationKind.checkedIn => CarpsIcons.sealCheck,
+    NotificationKind.tagged => CarpsIcons.tag,
+    NotificationKind.comment => CarpsIcons.chatCircle,
+    NotificationKind.cancelled => CarpsIcons.prohibit,
+    NotificationKind.supportUpdate => CarpsIcons.lifebuoy,
+    NotificationKind.supportAssigned => CarpsIcons.shieldStar,
+  };
 
   void _open(BuildContext context, AppNotification n) {
     final e = n.eventId;

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+
 import '../../core/carps_icons.dart';
 
 import '../../controllers/app_controller.dart';
@@ -43,10 +44,17 @@ class CarpsWordmark extends StatelessWidget {
 // -----------------------------------------------------------------------------
 
 class CarpsAvatar extends StatelessWidget {
-  const CarpsAvatar({super.key, required this.user, this.size = 40, this.ring});
+  const CarpsAvatar({
+    super.key,
+    required this.user,
+    this.size = 40,
+    this.ring,
+    this.borderRadius,
+  });
   final UserProfile? user;
   final double size;
   final Color? ring;
+  final BorderRadius? borderRadius;
 
   @override
   Widget build(BuildContext context) {
@@ -55,28 +63,52 @@ class CarpsAvatar extends StatelessWidget {
     final initials = (u == null || u.displayName.isEmpty)
         ? '?'
         : u.displayName
-            .split(' ')
-            .where((p) => p.isNotEmpty)
-            .take(2)
-            .map((p) => p[0].toUpperCase())
-            .join();
+              .split(' ')
+              .where((p) => p.isNotEmpty)
+              .take(2)
+              .map((p) => p[0].toUpperCase())
+              .join();
+    final fallback = Container(
+      width: size,
+      height: size,
+      color: c.muted,
+      alignment: Alignment.center,
+      child: Text(
+        initials,
+        style: TextStyle(
+          fontSize: size * 0.36,
+          fontWeight: FontWeight.w600,
+          color: c.textPrimary,
+        ),
+      ),
+    );
+    final avatar = u?.avatarAsset;
     Widget child;
-    if (u?.avatarAsset != null) {
-      child = Image.asset(u!.avatarAsset!,
-          width: size, height: size, fit: BoxFit.cover);
+    if (avatar != null && avatar.isNotEmpty) {
+      final uri = Uri.tryParse(avatar);
+      final isNetworkImage =
+          uri != null && (uri.scheme == 'http' || uri.scheme == 'https');
+      child = isNetworkImage
+          ? Image.network(
+              avatar,
+              width: size,
+              height: size,
+              fit: BoxFit.cover,
+              errorBuilder: (_, _, _) => fallback,
+            )
+          : Image.asset(
+              avatar,
+              width: size,
+              height: size,
+              fit: BoxFit.cover,
+              errorBuilder: (_, _, _) => fallback,
+            );
     } else {
-      child = Container(
-        width: size,
-        height: size,
-        color: c.muted,
-        alignment: Alignment.center,
-        child: Text(initials,
-            style: TextStyle(
-                fontSize: size * 0.36,
-                fontWeight: FontWeight.w600,
-                color: c.textPrimary)),
-      );
+      child = fallback;
     }
+    final clippedChild = borderRadius == null
+        ? ClipOval(child: child)
+        : ClipRRect(borderRadius: borderRadius!, child: child);
     return Semantics(
       label: u == null ? 'Avatar' : '${u.displayName} avatar',
       image: true,
@@ -85,8 +117,9 @@ class CarpsAvatar extends StatelessWidget {
             ? null
             : BoxDecoration(
                 shape: BoxShape.circle,
-                border: Border.all(color: ring!, width: 2)),
-        child: ClipOval(child: child),
+                border: Border.all(color: ring!, width: 2),
+              ),
+        child: clippedChild,
       ),
     );
   }
@@ -153,7 +186,8 @@ class CarpsButton extends StatelessWidget {
         ? SizedBox(
             width: 20,
             height: 20,
-            child: CircularProgressIndicator(strokeWidth: 2, color: fg))
+            child: CircularProgressIndicator(strokeWidth: 2, color: fg),
+          )
         : Row(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -162,13 +196,16 @@ class CarpsButton extends StatelessWidget {
                 const SizedBox(width: 8),
               ],
               Flexible(
-                child: Text(label,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                        fontFamily: carpsBodyFont,
-                        fontSize: height >= 52 ? 16 : 14,
-                        fontWeight: FontWeight.w700,
-                        color: fg)),
+                child: Text(
+                  label,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontFamily: carpsBodyFont,
+                    fontSize: height >= 52 ? 16 : 14,
+                    fontWeight: FontWeight.w700,
+                    color: fg,
+                  ),
+                ),
               ),
               if (trailingArrow) ...[
                 const SizedBox(width: 8),
@@ -254,7 +291,9 @@ class SegmentedTabs extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
-          color: c.muted, borderRadius: BorderRadius.circular(999)),
+        color: c.muted,
+        borderRadius: BorderRadius.circular(999),
+      ),
       child: Row(
         children: [
           for (var i = 0; i < labels.length; i++)
@@ -278,32 +317,41 @@ class SegmentedTabs extends StatelessWidget {
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           Flexible(
-                            child: Text(labels[i],
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w600,
-                                    color: i == selected
-                                        ? c.onSelect
-                                        : c.textSecondary)),
+                            child: Text(
+                              labels[i],
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                                color: i == selected
+                                    ? c.onSelect
+                                    : c.textSecondary,
+                              ),
+                            ),
                           ),
                           if (badges[i] != null) ...[
                             const SizedBox(width: 6),
                             Container(
                               padding: const EdgeInsets.symmetric(
-                                  horizontal: 6, vertical: 1),
+                                horizontal: 6,
+                                vertical: 1,
+                              ),
                               decoration: BoxDecoration(
+                                color: i == selected
+                                    ? c.accentFill
+                                    : c.borderSubtle,
+                                borderRadius: BorderRadius.circular(999),
+                              ),
+                              child: Text(
+                                badges[i]!,
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700,
                                   color: i == selected
-                                      ? c.accentFill
-                                      : c.borderSubtle,
-                                  borderRadius: BorderRadius.circular(999)),
-                              child: Text(badges[i]!,
-                                  style: TextStyle(
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.w700,
-                                      color: i == selected
-                                          ? c.onAccent
-                                          : c.textSecondary)),
+                                      ? c.onAccent
+                                      : c.textSecondary,
+                                ),
+                              ),
                             ),
                           ],
                         ],
@@ -355,18 +403,19 @@ class SelectChip extends StatelessWidget {
               children: [
                 Icon(
                   icon ??
-                      (selected
-                          ? CarpsIcons.checkCircleFill
-                          : CarpsIcons.plus),
+                      (selected ? CarpsIcons.checkCircleFill : CarpsIcons.plus),
                   size: 14,
                   color: selected ? c.accentOnInverse : c.textSecondary,
                 ),
                 const SizedBox(width: 6),
-                Text(label,
-                    style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
-                        color: selected ? c.onSelect : c.textPrimary)),
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                    color: selected ? c.onSelect : c.textPrimary,
+                  ),
+                ),
               ],
             ),
           ),
@@ -461,20 +510,25 @@ class StatusChip extends StatelessWidget {
     }
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration:
-          BoxDecoration(color: bg, borderRadius: BorderRadius.circular(999)),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(999),
+      ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(icon, size: 13, color: fg),
           const SizedBox(width: 5),
-          Text(label ?? text,
-              style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: fg,
-                  decoration: strike ? TextDecoration.lineThrough : null,
-                  decorationColor: fg)),
+          Text(
+            label ?? text,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: fg,
+              decoration: strike ? TextDecoration.lineThrough : null,
+              decorationColor: fg,
+            ),
+          ),
         ],
       ),
     );
@@ -482,11 +536,11 @@ class StatusChip extends StatelessWidget {
 }
 
 StatusKind statusFor(RegistrationStatus s) => switch (s) {
-      RegistrationStatus.pending => StatusKind.pending,
-      RegistrationStatus.approved => StatusKind.approved,
-      RegistrationStatus.declined => StatusKind.declined,
-      RegistrationStatus.withdrawn => StatusKind.withdrawn,
-    };
+  RegistrationStatus.pending => StatusKind.pending,
+  RegistrationStatus.approved => StatusKind.approved,
+  RegistrationStatus.declined => StatusKind.declined,
+  RegistrationStatus.withdrawn => StatusKind.withdrawn,
+};
 
 /// Small pill used to mark anything simulated (email, contacts, camera…).
 class SimulatedTag extends StatelessWidget {
@@ -498,14 +552,18 @@ class SimulatedTag extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
       decoration: BoxDecoration(
-          border: Border.all(color: c.borderStrong),
-          borderRadius: BorderRadius.circular(999)),
-      child: Text(text.toUpperCase(),
-          style: TextStyle(
-              fontSize: 10,
-              letterSpacing: 0.6,
-              fontWeight: FontWeight.w600,
-              color: c.textSecondary)),
+        border: Border.all(color: c.borderStrong),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        text.toUpperCase(),
+        style: TextStyle(
+          fontSize: 10,
+          letterSpacing: 0.6,
+          fontWeight: FontWeight.w600,
+          color: c.textSecondary,
+        ),
+      ),
     );
   }
 }
@@ -520,19 +578,27 @@ class TintPill extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
       decoration: BoxDecoration(
-          color: c.accentTint, borderRadius: BorderRadius.circular(999)),
-      child: Row(mainAxisSize: MainAxisSize.min, children: [
-        if (icon != null) ...[
-          Icon(icon, size: 12, color: c.accentFill),
-          const SizedBox(width: 4),
-        ],
-        Text(text.toUpperCase(),
+        color: c.accentTint,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (icon != null) ...[
+            Icon(icon, size: 12, color: c.accentFill),
+            const SizedBox(width: 4),
+          ],
+          Text(
+            text.toUpperCase(),
             style: TextStyle(
-                fontSize: 10,
-                letterSpacing: 0.3,
-                fontWeight: FontWeight.w600,
-                color: c.accentFill)),
-      ]),
+              fontSize: 10,
+              letterSpacing: 0.3,
+              fontWeight: FontWeight.w600,
+              color: c.accentFill,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -571,7 +637,8 @@ class DarkSheet extends StatelessWidget {
       padding: padding,
       child: Theme(
         data: carpsDarkTheme.copyWith(
-            scaffoldBackgroundColor: CarpsColors.light.inverse),
+          scaffoldBackgroundColor: CarpsColors.light.inverse,
+        ),
         child: DefaultTextStyle.merge(
           style: TextStyle(color: CarpsColors.dark.textPrimary),
           child: Material(type: MaterialType.transparency, child: child),
@@ -647,8 +714,8 @@ class SectionHeader extends StatelessWidget {
       child: Row(
         children: [
           Expanded(
-              child: Text(title,
-                  style: Theme.of(context).textTheme.titleLarge)),
+            child: Text(title, style: Theme.of(context).textTheme.titleLarge),
+          ),
           ?trailing,
         ],
       ),
@@ -664,16 +731,21 @@ class FieldLabel extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.only(left: 4, right: 4, bottom: 6),
-      child: Row(children: [
-        Expanded(
-          child: Text(text,
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              text,
               style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: context.carps.textPrimary)),
-        ),
-        ?trailing,
-      ]),
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: context.carps.textPrimary,
+              ),
+            ),
+          ),
+          ?trailing,
+        ],
+      ),
     );
   }
 }
@@ -683,12 +755,15 @@ class CaptionLabel extends StatelessWidget {
   final String text;
   final Color? color;
   @override
-  Widget build(BuildContext context) => Text(text.toUpperCase(),
-      style: TextStyle(
-          fontSize: 11,
-          letterSpacing: 0.6,
-          fontWeight: FontWeight.w600,
-          color: color ?? context.carps.textSecondary));
+  Widget build(BuildContext context) => Text(
+    text.toUpperCase(),
+    style: TextStyle(
+      fontSize: 11,
+      letterSpacing: 0.6,
+      fontWeight: FontWeight.w600,
+      color: color ?? context.carps.textSecondary,
+    ),
+  );
 }
 
 // -----------------------------------------------------------------------------
@@ -716,28 +791,34 @@ class EmptyState extends StatelessWidget {
         children: [
           Opacity(
             opacity: 0.85,
-            child: Image.asset('assets/images/carp_orange.png',
-                width: 72, height: 72),
+            child: Image.asset(
+              'assets/images/carp_orange.png',
+              width: 72,
+              height: 72,
+            ),
           ),
           const SizedBox(height: 16),
-          Text(title,
-              textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.titleLarge),
+          Text(
+            title,
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.titleLarge,
+          ),
           const SizedBox(height: 8),
-          Text(message,
-              textAlign: TextAlign.center,
-              style: Theme.of(context)
-                  .textTheme
-                  .bodyMedium
-                  ?.copyWith(color: context.carps.textSecondary)),
+          Text(
+            message,
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.bodyMedium
+                ?.copyWith(color: context.carps.textSecondary),
+          ),
           if (actionLabel != null) ...[
             const SizedBox(height: 20),
             CarpsButton(
-                label: actionLabel!,
-                onPressed: onAction,
-                kind: CarpsButtonKind.inverse,
-                height: 44,
-                expand: false),
+              label: actionLabel!,
+              onPressed: onAction,
+              kind: CarpsButtonKind.inverse,
+              height: 44,
+              expand: false,
+            ),
           ],
         ],
       ),
@@ -760,23 +841,26 @@ class ErrorState extends StatelessWidget {
         children: [
           Icon(CarpsIcons.warningCircle, size: 56, color: c.error),
           const SizedBox(height: 16),
-          Text('Something went wrong',
-              style: Theme.of(context).textTheme.titleLarge),
+          Text(
+            'Something went wrong',
+            style: Theme.of(context).textTheme.titleLarge,
+          ),
           const SizedBox(height: 8),
-          Text(message,
-              textAlign: TextAlign.center,
-              style: Theme.of(context)
-                  .textTheme
-                  .bodyMedium
-                  ?.copyWith(color: c.textSecondary)),
+          Text(
+            message,
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.bodyMedium
+                ?.copyWith(color: c.textSecondary),
+          ),
           const SizedBox(height: 20),
           CarpsButton(
-              label: 'Try again',
-              icon: CarpsIcons.arrowClockwise,
-              onPressed: onRetry,
-              kind: CarpsButtonKind.secondary,
-              height: 44,
-              expand: false),
+            label: 'Try again',
+            icon: CarpsIcons.arrowClockwise,
+            onPressed: onRetry,
+            kind: CarpsButtonKind.secondary,
+            height: 44,
+            expand: false,
+          ),
         ],
       ),
     );
@@ -798,7 +882,9 @@ class LoadingBlock extends StatelessWidget {
               height: 72,
               margin: const EdgeInsets.only(bottom: 12),
               decoration: BoxDecoration(
-                  color: c.muted, borderRadius: BorderRadius.circular(16)),
+                color: c.muted,
+                borderRadius: BorderRadius.circular(16),
+              ),
             ),
         ],
       ),
@@ -842,8 +928,7 @@ class CarpsTopBar extends StatelessWidget {
               icon: Stack(
                 clipBehavior: Clip.none,
                 children: [
-                  Icon(CarpsIcons.bell,
-                      size: 26, color: c.textPrimary),
+                  Icon(CarpsIcons.bell, size: 26, color: c.textPrimary),
                   if (unread > 0)
                     Positioned(
                       right: 0,
@@ -852,9 +937,10 @@ class CarpsTopBar extends StatelessWidget {
                         width: 9,
                         height: 9,
                         decoration: BoxDecoration(
-                            color: c.accentFill,
-                            shape: BoxShape.circle,
-                            border: Border.all(color: c.canvas, width: 1.5)),
+                          color: c.accentFill,
+                          shape: BoxShape.circle,
+                          border: Border.all(color: c.canvas, width: 1.5),
+                        ),
                       ),
                     ),
                 ],
@@ -895,13 +981,16 @@ class BackHeader extends StatelessWidget {
           IconButton(
             tooltip: 'Back',
             icon: Icon(CarpsIcons.arrowLeft, color: c.textPrimary),
-            onPressed: () => context.canPop() ? context.pop() : context.go('/home'),
+            onPressed: () =>
+                context.canPop() ? context.pop() : context.go('/home'),
           ),
           const SizedBox(width: 4),
           Expanded(
-            child: Text(title,
-                overflow: TextOverflow.ellipsis,
-                style: Theme.of(context).textTheme.titleMedium),
+            child: Text(
+              title,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
           ),
           ?trailing,
           const SizedBox(width: 8),
@@ -917,12 +1006,11 @@ class CarpsCopyright extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Text(
-        '© Carps. Co. All Rights Reserved.',
-        textAlign: TextAlign.center,
-        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              color: context.carps.textSecondary,
-            ),
-      );
+    '© Carps. Co. All Rights Reserved.',
+    textAlign: TextAlign.center,
+    style: Theme.of(context).textTheme.bodySmall
+        ?.copyWith(color: context.carps.textSecondary),
+  );
 }
 
 /// Standard scrollable secondary page with a [BackHeader] and a max width.
@@ -933,6 +1021,7 @@ class CarpsPage extends StatelessWidget {
     required this.children,
     this.trailing,
     this.bottomBar,
+    this.onRefresh,
     this.padding = const EdgeInsets.fromLTRB(16, 8, 16, 32),
     this.maxWidth = 720,
   });
@@ -940,11 +1029,30 @@ class CarpsPage extends StatelessWidget {
   final List<Widget> children;
   final Widget? trailing;
   final Widget? bottomBar;
+  final Future<void> Function()? onRefresh;
   final EdgeInsets padding;
   final double maxWidth;
 
   @override
   Widget build(BuildContext context) {
+    final listView = ListView(
+      physics: onRefresh == null ? null : const AlwaysScrollableScrollPhysics(),
+      padding: EdgeInsets.zero,
+      children: [
+        Center(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(maxWidth: maxWidth),
+            child: Padding(
+              padding: padding,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: children,
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
     return Scaffold(
       body: SafeArea(
         bottom: false,
@@ -952,28 +1060,16 @@ class CarpsPage extends StatelessWidget {
           children: [
             BackHeader(title: title, trailing: trailing),
             Expanded(
-              child: ListView(
-                padding: EdgeInsets.zero,
-                children: [
-                  Center(
-                    child: ConstrainedBox(
-                      constraints: BoxConstraints(maxWidth: maxWidth),
-                      child: Padding(
-                        padding: padding,
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: children,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
+              child: onRefresh == null
+                  ? listView
+                  : RefreshIndicator(onRefresh: onRefresh!, child: listView),
             ),
           ],
         ),
       ),
-      bottomNavigationBar: bottomBar == null ? null : BottomActionBar(child: bottomBar!),
+      bottomNavigationBar: bottomBar == null
+          ? null
+          : BottomActionBar(child: bottomBar!),
     );
   }
 }
@@ -990,13 +1086,19 @@ class BottomActionBar extends StatelessWidget {
         border: Border(top: BorderSide(color: c.borderSubtle)),
       ),
       padding: EdgeInsets.fromLTRB(
-          16, 12, 16, 12 + MediaQuery.paddingOf(context).bottom),
+        16,
+        12,
+        16,
+        12 + MediaQuery.paddingOf(context).bottom,
+      ),
       // heightFactor 1: a plain Center would expand to the whole screen
       // and push floating SnackBars off-screen.
       child: Center(
         heightFactor: 1,
         child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 720), child: child),
+          constraints: const BoxConstraints(maxWidth: 720),
+          child: child,
+        ),
       ),
     );
   }
@@ -1006,25 +1108,36 @@ class BottomActionBar extends StatelessWidget {
 // Feedback helpers
 // -----------------------------------------------------------------------------
 
-void showCarpsSnack(BuildContext context, String message, {bool error = false}) {
+void showCarpsSnack(
+  BuildContext context,
+  String message, {
+  bool error = false,
+}) {
   final messenger = ScaffoldMessenger.maybeOf(context);
   messenger?.hideCurrentSnackBar();
-  messenger?.showSnackBar(SnackBar(
-    content: Row(children: [
-      Icon(
-          error
-              ? CarpsIcons.warningCircle
-              : CarpsIcons.checkCircle,
-          color: error ? const Color(0xFFFF6B60) : const Color(0xFF3DD47A),
-          size: 18),
-      const SizedBox(width: 10),
-      Expanded(child: Text(message)),
-    ]),
-  ));
+  messenger?.showSnackBar(
+    SnackBar(
+      content: Row(
+        children: [
+          Icon(
+            error ? CarpsIcons.warningCircle : CarpsIcons.checkCircle,
+            color: error ? const Color(0xFFFF6B60) : const Color(0xFF3DD47A),
+            size: 18,
+          ),
+          const SizedBox(width: 10),
+          Expanded(child: Text(message)),
+        ],
+      ),
+    ),
+  );
 }
 
 /// Runs a rule-checked action and turns [RuleViolation]s into a snackbar.
-bool runAction(BuildContext context, void Function() action, {String? success}) {
+bool runAction(
+  BuildContext context,
+  void Function() action, {
+  String? success,
+}) {
   try {
     action();
     if (success != null) showCarpsSnack(context, success);
@@ -1049,25 +1162,29 @@ Future<bool> confirmDialog(
       content: Text(message),
       actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
       actions: [
-        Row(children: [
-          Expanded(
-            child: CarpsButton(
+        Row(
+          children: [
+            Expanded(
+              child: CarpsButton(
                 label: 'Cancel',
                 height: 44,
                 kind: CarpsButtonKind.secondary,
-                onPressed: () => Navigator.pop(ctx, false)),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: CarpsButton(
+                onPressed: () => Navigator.pop(ctx, false),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: CarpsButton(
                 label: confirmLabel,
                 height: 44,
                 kind: destructive
                     ? CarpsButtonKind.danger
                     : CarpsButtonKind.primary,
-                onPressed: () => Navigator.pop(ctx, true)),
-          ),
-        ]),
+                onPressed: () => Navigator.pop(ctx, true),
+              ),
+            ),
+          ],
+        ),
       ],
     ),
   );

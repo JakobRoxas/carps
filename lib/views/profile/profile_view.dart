@@ -85,18 +85,10 @@ class _ProfileViewState extends State<ProfileView> {
                           Stack(
                             clipBehavior: Clip.none,
                             children: [
-                              ClipRRect(
+                              CarpsAvatar(
+                                user: user,
+                                size: 92,
                                 borderRadius: BorderRadius.circular(24),
-                                child: SizedBox(
-                                  width: 92,
-                                  height: 92,
-                                  child: user.avatarAsset != null
-                                      ? Image.asset(
-                                          user.avatarAsset!,
-                                          fit: BoxFit.cover,
-                                        )
-                                      : CarpsAvatar(user: user, size: 92),
-                                ),
                               ),
                             ],
                           ),
@@ -586,7 +578,7 @@ class _ProfileViewState extends State<ProfileView> {
                 '${dateTime(next.start)} · ${next.venue}',
                 style: TextStyle(
                   fontSize: 12,
-                  color: CarpsColors.light.textSecondary,
+                  color: context.carps.textSecondary,
                 ),
               ),
               const SizedBox(height: 12),

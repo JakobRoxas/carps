@@ -1,14 +1,19 @@
 import 'package:carps/controllers/app_controller.dart';
 import 'package:carps/core/theme/carps_colors.dart';
+import 'package:carps/core/theme/carps_theme.dart';
 import 'package:carps/core/widgets/carps_widgets.dart';
 import 'package:carps/main.dart';
 import 'package:carps/models/carps_models.dart';
 import 'package:carps/repositories/mock_carps_repository.dart';
+import 'package:carps/services/firebase_auth_gateway.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:carps/views/profile/rsvps_view.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:qr_flutter/qr_flutter.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 /// Drives the definition-of-done journey through the real widgets at phone
 /// size: request → approve → pass → scan → end → tagged post, plus the
@@ -16,6 +21,24 @@ import 'package:go_router/go_router.dart';
 void main() {
   late AppController app;
   final now = DateTime(2026, 11, 24, 15);
+
+  test('invalid Firebase credentials mention Google sign-in', () {
+    final message = firebaseAuthErrorMessage(
+      FirebaseAuthException(code: 'invalid-credential'),
+    );
+
+    expect(message, contains('choose Continue with Google'));
+  });
+
+  testWidgets('native Firebase setup notice explains mobile configuration', (
+    tester,
+  ) async {
+    await tester.pumpWidget(const FirebaseSetupRequiredApp());
+
+    expect(find.text('Firebase mobile setup required'), findsOneWidget);
+    expect(find.textContaining('flutterfire configure'), findsOneWidget);
+    expect(find.textContaining('does not sign in to Firebase'), findsOneWidget);
+  });
 
   /// pumpAndSettle doesn't wait for timers, so pump past the simulated
   /// network/latency delays first.
@@ -106,6 +129,84 @@ void main() {
     expect(find.textContaining('Ana'), findsWidgets);
     expect(find.text('For You'), findsOneWidget);
     expect(find.text('Hosting'), findsOneWidget);
+  });
+
+  testWidgets('keep me logged in can be disabled on the login form', (
+    tester,
+  ) async {
+    await boot(tester);
+    final checkbox = find.descendant(
+      of: find.byKey(const ValueKey('keep-signed-in')),
+      matching: find.byType(Checkbox),
+    );
+
+    expect(tester.widget<Checkbox>(checkbox).value, isTrue);
+    await tester.tap(checkbox);
+    await tester.pump();
+    expect(tester.widget<Checkbox>(checkbox).value, isFalse);
+  });
+
+  testWidgets('broken remote avatar falls back to profile initials', (
+    tester,
+  ) async {
+    const user = UserProfile(
+      id: 'avatar-test',
+      displayName: 'Jamie Rivera',
+      username: 'jamierivera',
+      email: 'jamie@example.com',
+      avatarAsset: 'https://example.invalid/avatar.png',
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: carpsLightTheme,
+        home: const Scaffold(
+          body: Center(child: CarpsAvatar(user: user, size: 64)),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('JR'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('dark mode switch updates the app and persists', (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    final preferences = await SharedPreferences.getInstance();
+    app = AppController(
+      MockCarpsRepository.seeded(now),
+      clock: () => now,
+      preferences: preferences,
+    )..signIn(DemoIds.ana);
+    addTearDown(app.dispose);
+
+    await tester.pumpWidget(CarpsApp(controller: app));
+    await settle(tester);
+    go(tester, '/settings');
+    await settle(tester);
+
+    final toggle = find.byKey(const ValueKey('dark-mode-toggle'));
+    expect(tester.widget<SwitchListTile>(toggle).value, isFalse);
+    await tester.tap(toggle);
+    await settle(tester);
+
+    expect(app.isDarkMode, isTrue);
+    expect(preferences.getBool(AppController.darkModePreferenceKey), isTrue);
+    expect(
+      Theme.of(tester.element(find.text('Settings & Help'))).brightness,
+      Brightness.dark,
+    );
+
+    final restored = AppController(
+      MockCarpsRepository.seeded(now),
+      clock: () => now,
+      initialDarkMode:
+          preferences.getBool(AppController.darkModePreferenceKey) ?? false,
+      preferences: preferences,
+    );
+    expect(restored.isDarkMode, isTrue);
+    restored.dispose();
   });
 
   testWidgets('login form surface matches the light desktop page', (
@@ -207,6 +308,7 @@ void main() {
     await settle(tester);
     final token = app.service.passFor(live, DemoIds.ana)!.token;
     expect(find.text(token), findsOneWidget);
+    expect(find.byType(QrImageView), findsOneWidget);
     expect(find.text('Approved'), findsOneWidget);
 
     // 4 · Mika scans Ana (and Sofia) at the venue; a repeat scan isn't counted.
@@ -214,23 +316,27 @@ void main() {
     await settle(tester);
     go(tester, '/event/$live/scan');
     await settle(tester);
-    Future<void> scanRow(String name) async {
-      final row = find.ancestor(
-        of: find.text(name),
-        matching: find.byType(ListTile),
+    Future<void> scanPass(String userId) async {
+      final next = find.text('Scan next');
+      if (next.evaluate().isNotEmpty) {
+        await tester.tap(next);
+        await settle(tester);
+      }
+      final passToken = app.service.passFor(live, userId)!.token;
+      await tester.enterText(
+        find.byKey(const ValueKey('pass-code-input')),
+        passToken,
       );
-      final btn = find.descendant(of: row.first, matching: find.text('Scan'));
-      await tester.ensureVisible(btn);
-      await tester.tap(btn);
+      await tester.tap(find.text('Check'));
       await settle(tester);
     }
 
-    await scanRow('Ana Reyes');
+    await scanPass(DemoIds.ana);
     expect(find.text('Checked in'), findsOneWidget);
-    await scanRow('Ana Reyes');
+    await scanPass(DemoIds.ana);
     expect(find.text('Already checked in'), findsOneWidget);
     expect(app.service.attendanceForEvent(live).length, 1);
-    await scanRow('Sofia Santos');
+    await scanPass(DemoIds.sofia);
 
     // 5 · The event ends (same transition as the demo control).
     app.service.endEventNow(live);

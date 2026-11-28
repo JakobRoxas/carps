@@ -1,4 +1,5 @@
 import 'package:flutter/widgets.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/carps_models.dart';
 import 'auth_controller.dart';
@@ -26,10 +27,16 @@ import '../services/firebase_auth_gateway.dart';
 /// It forwards repository changes so any widget that watches it rebuilds when
 /// shared state (registrations, passes, posts…) changes.
 class AppController extends ChangeNotifier {
-  AppController(this.repo,
-      {Clock? clock, FirebaseAuthGateway? authGateway, String? initialUserId})
-      : _clock = clock ?? DateTime.now,
-        _currentUserId = initialUserId {
+  AppController(
+    this.repo, {
+    Clock? clock,
+    FirebaseAuthGateway? authGateway,
+    String? initialUserId,
+    bool initialDarkMode = false,
+    this.preferences,
+  }) : _clock = clock ?? DateTime.now,
+       _currentUserId = initialUserId,
+       _darkMode = initialDarkMode {
     data = DataController(repo);
 
     // Each feature gets a focused domain service backed by the same repository
@@ -60,11 +67,13 @@ class AppController extends ChangeNotifier {
 
   final CarpsRepository repo;
   final Clock _clock;
+  final SharedPreferences? preferences;
   late final DataController data;
 
   /// Lazily-created aggregate facade for existing domain tests only.
   /// Production controllers use the focused services constructed above.
   late final CarpsService service = CarpsService(repo, clock: _clock);
+
   /// Feature controllers are the UI-facing API. Views should depend on these
   /// controllers rather than calling domain services or repositories.
   late final EventController events;
@@ -77,11 +86,42 @@ class AppController extends ChangeNotifier {
 
   String? _currentUserId;
   String? get currentUserId => _currentUserId;
+  bool _darkMode;
+  bool get isDarkMode => _darkMode;
   UserProfile? get me =>
       _currentUserId == null ? null : data.userById(_currentUserId!);
   bool get signedIn => me != null;
 
   String? get persistenceError => repo.persistenceError;
+  bool _isRefreshing = false;
+  bool get isRefreshing => _isRefreshing;
+
+  static const darkModePreferenceKey = 'carps.dark_mode';
+
+  Future<void> setDarkMode(bool value) async {
+    if (_darkMode == value) return;
+
+    final preferenceStore = preferences;
+    if (preferenceStore != null &&
+        !await preferenceStore.setBool(darkModePreferenceKey, value)) {
+      throw StateError('Could not save the appearance preference.');
+    }
+
+    _darkMode = value;
+    notifyListeners();
+  }
+
+  Future<void> refresh() async {
+    if (_isRefreshing) return;
+    _isRefreshing = true;
+    notifyListeners();
+    try {
+      await repo.refresh();
+    } finally {
+      _isRefreshing = false;
+      notifyListeners();
+    }
+  }
 
   /// Demo switch: makes "lookup" calls (attendance history, event picker)
   /// fail so the failure state can be reviewed. Never changes the rules.
@@ -108,7 +148,9 @@ class AppController extends ChangeNotifier {
   Future<T> lookup<T>(T Function() read) async {
     await Future<void>.delayed(const Duration(milliseconds: 350));
     if (simulateLookupFailure) {
-      throw const RuleViolation('We could not reach CARPS. Check your connection.');
+      throw const RuleViolation(
+        'We could not reach CARPS. Check your connection.',
+      );
     }
     return read();
   }
@@ -122,8 +164,11 @@ class AppController extends ChangeNotifier {
 
 /// Provides the [AppController] to the widget tree.
 class AppScope extends InheritedNotifier<AppController> {
-  const AppScope({super.key, required AppController controller, required super.child})
-      : super(notifier: controller);
+  const AppScope({
+    super.key,
+    required AppController controller,
+    required super.child,
+  }) : super(notifier: controller);
 
   static AppController watch(BuildContext context) =>
       context.dependOnInheritedWidgetOfExactType<AppScope>()!.notifier!;

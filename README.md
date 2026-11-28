@@ -130,10 +130,58 @@ Run against the configured Firebase project:
 flutter run -d chrome
 ```
 
-The checked-in `lib/firebase_options.dart` currently contains Web Firebase
-options. Native Android/iOS Firebase configuration is outside the current
-web-only delivery scope and must be completed before running those native
-platforms.
+The checked-in `lib/firebase_options.dart` contains Web and Android Firebase
+options. iOS Firebase configuration is not set up; the current native target is
+the Android APK.
+
+## Test QR passes on a mobile device
+
+Native Firebase app registrations are not checked in yet. To test the real
+mobile camera and QR flow against the seeded local demo data, connect an
+Android or iOS device and run:
+
+```bash
+flutter devices
+flutter run -d <device-id> --dart-define=USE_MOCK_DATA=true
+```
+
+The app shows a **LOCAL DEMO** banner in this mode and starts signed out; it
+does not connect to Firebase. Open the Demo controls to switch to the event
+host or a guest. Open an event's check-in scanner on one device and show an
+approved guest's pass on another device. Allow camera access when prompted.
+The scanner also supports entering a pass code manually if camera access is
+unavailable. The mock data is in memory and resets when the app restarts.
+
+### Configure Firebase-backed mobile login
+
+Before running without `USE_MOCK_DATA`, register the Android app in Firebase
+with the exact package name `com.group2.carps`. Then install and authenticate
+the Firebase CLIs and generate Android and Web options:
+
+```bash
+npm install -g firebase-tools
+firebase login
+dart pub global activate flutterfire_cli
+flutterfire configure --project=carps-d19cf --platforms=android,web --android-package-name=com.group2.carps
+```
+
+In Firebase Console, enable Email/Password and Google under **Authentication →
+Sign-in method**. For Android Google sign-in, add the signing SHA-1 and SHA-256
+fingerprints for the APK to the registered Android app, then download a fresh
+`google-services.json` into `android/app/`. Run mobile builds without the
+`USE_MOCK_DATA` define to use Firebase accounts.
+
+### Live notifications and refresh
+
+While a signed-in app is open, it listens to the current user's Firestore
+notifications. New join requests and request decisions appear in the in-app
+notification list without manually refreshing. Pull down on **My RSVPs** or
+the host's **Guest roster** to reload the rest of the Firestore data.
+
+This uses Firestore directly and does not require Cloud Functions, Firebase
+Cloud Messaging, a Blaze plan, or a Vercel deployment. Notifications do not
+produce Android or browser alerts while the app is in the background or closed;
+the in-app list updates when the app is opened again.
 
 ## Use local Firebase emulators
 
@@ -172,9 +220,7 @@ Firestore collections and documents are created as the app writes them; there
 are no SQL tables to create manually. Email/password credentials are managed by
 Firebase Authentication rather than stored as profile-document passwords.
 
-Cloud Functions are not part of the current configured deployment. Push
-delivery, image uploads, and production analytics remain out of scope unless
-the team explicitly implements and verifies them.
+Image uploads and production analytics are not configured.
 
 ## Quality checks
 

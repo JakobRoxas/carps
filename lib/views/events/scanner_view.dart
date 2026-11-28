@@ -7,11 +7,10 @@ import '../../controllers/app_controller.dart';
 import '../../core/format.dart';
 import '../../core/theme/carps_colors.dart';
 import '../../core/widgets/carps_widgets.dart';
+import '../../firebase/firebase_runtime.dart';
 import '../../models/carps_models.dart';
 
 /// Event-specific QR scanner (derived from Figma 15's scanner card).
-/// The camera is SIMULATED: the host picks which pass is "in front of the
-/// camera" or types the code. Results come from the real scan rules.
 class ScannerView extends StatefulWidget {
   const ScannerView({super.key, required this.eventId});
   final String eventId;
@@ -21,9 +20,11 @@ class ScannerView extends StatefulWidget {
 
 class _ScannerViewState extends State<ScannerView> {
   final _code = TextEditingController();
-  final _camera = MobileScannerController();
+  final _camera = MobileScannerController(
+    detectionSpeed: DetectionSpeed.noDuplicates,
+    formats: const [BarcodeFormat.qrCode],
+  );
   ScanResult? _result;
-  bool _cameraDenied = false;
 
   @override
   void dispose() {
@@ -33,9 +34,15 @@ class _ScannerViewState extends State<ScannerView> {
   }
 
   void _scan(String token) {
+    final normalizedToken = token.trim();
+    if (normalizedToken.isEmpty || _result != null) return;
     final app = context.appRead;
     setState(
-      () => _result = app.registrations.scan(app.me!.id, widget.eventId, token),
+      () => _result = app.registrations.scan(
+        app.me!.id,
+        widget.eventId,
+        normalizedToken,
+      ),
     );
   }
 
@@ -144,24 +151,23 @@ class _ScannerViewState extends State<ScannerView> {
                                           ? 'The event has ended.'
                                           : 'Opens 6 hours before start (${dateTime(event.start)}).'),
                               )
-                            : _cameraDenied
-                            ? _centerMsg(
-                                CarpsIcons.cameraSlash,
-                                'Camera permission denied',
-                                'Allow camera access in your device settings, or enter the pass code below.',
-                              )
                             : _result == null
                             ? ClipRRect(
                                 borderRadius: BorderRadius.circular(24),
                                 child: MobileScanner(
                                   controller: _camera,
+                                  errorBuilder: (_, error) =>
+                                      _cameraError(error),
                                   onDetect: (capture) {
-                                    final code =
-                                        capture.barcodes.first.rawValue;
-                                    if (code != null &&
-                                        code.isNotEmpty &&
-                                        _result == null) {
-                                      _scan(code);
+                                    for (final barcode in capture.barcodes) {
+                                      final code = barcode.rawValue;
+                                      if (barcode.format ==
+                                              BarcodeFormat.qrCode &&
+                                          code != null &&
+                                          code.trim().isNotEmpty) {
+                                        _scan(code);
+                                        break;
+                                      }
                                     }
                                   },
                                 ),
@@ -171,18 +177,26 @@ class _ScannerViewState extends State<ScannerView> {
                     ),
                   ),
                   const SizedBox(height: 12),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
+                  Wrap(
+                    alignment: WrapAlignment.center,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    spacing: 8,
                     children: [
                       const TintPill('Live camera'),
-                      const SizedBox(width: 8),
-                      TextButton(
-                        onPressed: () =>
-                            setState(() => _cameraDenied = !_cameraDenied),
+                      IconButton(
+                        tooltip: 'Toggle flashlight',
+                        onPressed: () => _camera.toggleTorch(),
+                        icon: const Icon(CarpsIcons.lightning),
+                      ),
+                      IconButton(
+                        tooltip: 'Switch camera',
+                        onPressed: () => _camera.switchCamera(),
+                        icon: const Icon(CarpsIcons.arrowsClockwise),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 12),
                         child: Text(
-                          _cameraDenied
-                              ? 'Grant camera (simulate)'
-                              : 'Simulate camera denied',
+                          'Point the back camera at a guest pass.',
                           style: TextStyle(
                             color: d.textSecondary,
                             fontSize: 12,
@@ -193,53 +207,13 @@ class _ScannerViewState extends State<ScannerView> {
                   ),
                   if (open) ...[
                     const SizedBox(height: 16),
-                    if (!_cameraDenied) ...[
-                      const CaptionLabel('Passes being presented'),
-                      const SizedBox(height: 8),
-                      if (presentable.isEmpty)
-                        Text(
-                          'No passes issued yet.',
-                          style: TextStyle(color: d.textSecondary),
-                        ),
-                      for (final p in presentable)
-                        Builder(
-                          builder: (context) {
-                            final guest = app.data.userById(p.userId);
-                            final pe = app.data.eventById(p.eventId)!;
-                            final other = p.eventId != event.id;
-                            return ListTile(
-                              contentPadding: EdgeInsets.zero,
-                              leading: CarpsAvatar(user: guest, size: 40),
-                              title: Text(
-                                guest?.displayName ?? '',
-                                style: const TextStyle(color: Colors.white),
-                              ),
-                              subtitle: Text(
-                                '${other ? 'Pass for ${pe.title} (${shortDate(pe.start)})' : 'Pass for this event'}${p.revoked ? ' · withdrawn' : ''}',
-                                style: TextStyle(
-                                  color: d.textSecondary,
-                                  fontSize: 12,
-                                ),
-                              ),
-                              trailing: CarpsButton(
-                                label: 'Scan',
-                                icon: CarpsIcons.qrCode,
-                                kind: CarpsButtonKind.inverse,
-                                height: 36,
-                                expand: false,
-                                onPressed: () => _scan(p.token),
-                              ),
-                            );
-                          },
-                        ),
-                      const SizedBox(height: 16),
-                    ],
                     const CaptionLabel('Or enter the pass code'),
                     const SizedBox(height: 8),
                     Row(
                       children: [
                         Expanded(
                           child: TextField(
+                            key: const ValueKey('pass-code-input'),
                             controller: _code,
                             style: const TextStyle(color: Colors.white),
                             decoration: const InputDecoration(
@@ -259,12 +233,65 @@ class _ScannerViewState extends State<ScannerView> {
                       ],
                     ),
                   ],
+                  if (FirebaseRuntime.useMockData && open) ...[
+                    const SizedBox(height: 16),
+                    const CaptionLabel('Mock test passes'),
+                    const SizedBox(height: 8),
+                    if (presentable.isEmpty)
+                      Text(
+                        'No passes issued yet.',
+                        style: TextStyle(color: d.textSecondary),
+                      ),
+                    for (final p in presentable)
+                      Builder(
+                        builder: (context) {
+                          final guest = app.data.userById(p.userId);
+                          final pe = app.data.eventById(p.eventId)!;
+                          final other = p.eventId != event.id;
+                          return ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            leading: CarpsAvatar(user: guest, size: 40),
+                            title: Text(
+                              guest?.displayName ?? '',
+                              style: const TextStyle(color: Colors.white),
+                            ),
+                            subtitle: Text(
+                              '${other ? 'Pass for ${pe.title} (${shortDate(pe.start)})' : 'Pass for this event'}${p.revoked ? ' · withdrawn' : ''}',
+                              style: TextStyle(
+                                color: d.textSecondary,
+                                fontSize: 12,
+                              ),
+                            ),
+                            trailing: CarpsButton(
+                              label: 'Test',
+                              icon: CarpsIcons.qrCode,
+                              kind: CarpsButtonKind.inverse,
+                              height: 36,
+                              expand: false,
+                              onPressed: () => _scan(p.token),
+                            ),
+                          );
+                        },
+                      ),
+                  ],
                 ],
               );
             },
           ),
         ),
       ),
+    );
+  }
+
+  Widget _cameraError(MobileScannerException error) {
+    final permissionDenied =
+        error.errorCode == MobileScannerErrorCode.permissionDenied;
+    return _centerMsg(
+      permissionDenied ? CarpsIcons.cameraSlash : CarpsIcons.warningCircle,
+      permissionDenied ? 'Camera permission denied' : 'Camera unavailable',
+      permissionDenied
+          ? 'Allow camera access for CARPS in your device settings. You can still enter the pass code below.'
+          : 'Check camera access and close other apps using the camera. You can still enter the pass code below.',
     );
   }
 

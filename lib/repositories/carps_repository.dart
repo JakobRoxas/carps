@@ -14,6 +14,9 @@ abstract class CarpsRepository extends ChangeNotifier {
   /// Clears the local cache without deleting records from a remote store.
   void clear();
 
+  /// Refreshes the local cache from the backing store when supported.
+  Future<void> refresh() async {}
+
   /// Last remote persistence failure, if any. Mock repositories have none.
   String? get persistenceError => null;
 

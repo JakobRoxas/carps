@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/carps_icons.dart';
 
@@ -36,6 +37,30 @@ class _SettingsViewState extends State<SettingsView> {
     _link.dispose();
     _details.dispose();
     super.dispose();
+  }
+
+  Future<void> _setDarkMode(bool value) async {
+    try {
+      await context.appRead.setDarkMode(value);
+    } on StateError catch (error) {
+      if (mounted) showCarpsSnack(context, error.message.toString(), error: true);
+    } on PlatformException catch (error) {
+      if (mounted) {
+        showCarpsSnack(
+          context,
+          error.message ?? 'Could not save the appearance preference.',
+          error: true,
+        );
+      }
+    } on MissingPluginException {
+      if (mounted) {
+        showCarpsSnack(
+          context,
+          'Appearance settings are unavailable on this device.',
+          error: true,
+        );
+      }
+    }
   }
 
   @override
@@ -113,7 +138,7 @@ class _SettingsViewState extends State<SettingsView> {
                         style: Theme.of(context).textTheme.headlineLarge),
                     const SizedBox(height: 16),
                     Material(
-                      color: const Color(0xFF0A0A0A),
+                      color: c.inverse,
                       borderRadius: BorderRadius.circular(24),
                       child: InkWell(
                         borderRadius: BorderRadius.circular(24),
@@ -128,22 +153,25 @@ class _SettingsViewState extends State<SettingsView> {
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(me.displayName,
-                                      style: const TextStyle(
-                                          color: Colors.white,
+                                      style: TextStyle(
+                                          color: c.onInverse,
                                           fontSize: 18,
                                           fontWeight: FontWeight.w600)),
                                   Text(
                                       '${me.handle} · ${me.hostingEnabled ? 'Attendee & Builder' : 'Attendee'}${me.isAdmin ? ' · Admin (assigned)' : ''}',
-                                      style: const TextStyle(
-                                          color: Color(0xFFA3A3A3),
+                                      style: TextStyle(
+                                          color: c.onInverseSecondary,
                                           fontSize: 12)),
                                 ],
                               ),
                             ),
-                            const CircleAvatar(
-                              backgroundColor: Color(0xFF1F1F1F),
-                              child: Icon(CarpsIcons.caretRight,
-                                  color: Colors.white, size: 18),
+                            CircleAvatar(
+                              backgroundColor: c.inverseRaised,
+                              child: Icon(
+                                CarpsIcons.caretRight,
+                                color: c.onInverse,
+                                size: 18,
+                              ),
                             ),
                           ]),
                         ),
@@ -170,9 +198,19 @@ class _SettingsViewState extends State<SettingsView> {
                           onTap: () => context.push('/followed')),
                     ]),
                     section('Preferences', [
-                      row(CarpsIcons.moon, 'Appearance mode',
-                          'Dark mode is a stretch goal for the pilot',
-                          trailing: const SimulatedTag(text: 'Coming later')),
+                      SwitchListTile(
+                        key: const ValueKey('dark-mode-toggle'),
+                        secondary: const Icon(CarpsIcons.moon),
+                        title: const Text(
+                          'Dark mode',
+                          style: TextStyle(fontWeight: FontWeight.w600),
+                        ),
+                        subtitle: const Text(
+                          'Use a darker color theme throughout CARPS.',
+                        ),
+                        value: app.isDarkMode,
+                        onChanged: _setDarkMode,
+                      ),
                       SwitchListTile(
                         secondary: const Icon(CarpsIcons.bellRinging),
                         title: const Text('In-app notifications',

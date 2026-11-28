@@ -1,7 +1,7 @@
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 
 import '../models/carps_models.dart';
-import '../models/carps_validation.dart';
 import '../repositories/firebase_carps_repository.dart';
 
 class FirebaseAuthGateway {
@@ -10,7 +10,12 @@ class FirebaseAuthGateway {
   final FirebaseAuth auth;
   final FirebaseCarpsRepository repository;
 
-  Future<UserProfile> signInWithEmail(String email, String password) async {
+  Future<UserProfile> signInWithEmail(
+    String email,
+    String password, {
+    bool keepSignedIn = true,
+  }) async {
+    await _setPersistence(keepSignedIn);
     final credential = await auth.signInWithEmailAndPassword(
       email: email.trim(),
       password: password,
@@ -19,13 +24,18 @@ class FirebaseAuthGateway {
     return _loadOrCreateProfile(credential.user!);
   }
 
-  Future<UserProfile> signUpWithEmail(String email, String password) async {
+  Future<UserProfile> signUpWithEmail(
+    String email,
+    String password, {
+    bool keepSignedIn = true,
+  }) async {
     if (!CarpsValidation.isValidEmail(email)) {
       throw const RuleViolation('Enter a valid email.');
     }
     if (password.length < 8) {
       throw const RuleViolation('Use at least 8 characters for your password.');
     }
+    await _setPersistence(keepSignedIn);
     final credential = await auth.createUserWithEmailAndPassword(
       email: email.trim(),
       password: password,
@@ -34,8 +44,12 @@ class FirebaseAuthGateway {
     return _loadOrCreateProfile(credential.user!);
   }
 
-  Future<UserProfile> signInWithGoogle() async {
-    final credential = await auth.signInWithProvider(GoogleAuthProvider());
+  Future<UserProfile> signInWithGoogle({bool keepSignedIn = true}) async {
+    await _setPersistence(keepSignedIn);
+    final provider = GoogleAuthProvider();
+    final credential = kIsWeb
+        ? await auth.signInWithPopup(provider)
+        : await auth.signInWithProvider(provider);
     final user = credential.user;
     if (user == null) {
       throw const RuleViolation('Google sign-in did not return an account.');
@@ -61,6 +75,13 @@ class FirebaseAuthGateway {
     await auth.signOut();
     repository.clear();
     if (writeError != null) throw writeError;
+  }
+
+  Future<void> _setPersistence(bool keepSignedIn) async {
+    if (!kIsWeb) return;
+    await auth.setPersistence(
+      keepSignedIn ? Persistence.LOCAL : Persistence.SESSION,
+    );
   }
 
   Future<UserProfile?> restoreSession() async {
@@ -109,9 +130,7 @@ String firebaseAuthErrorMessage(FirebaseAuthException error) {
   return switch (error.code) {
     'email-already-in-use' => 'An account with this email already exists.',
     'invalid-email' => 'Enter a valid email address.',
-    'invalid-credential' ||
-    'wrong-password' ||
-    'user-not-found' => 'Email or password is incorrect.',
+    'invalid-credential' || 'wrong-password' || 'user-not-found' => 'Email or password is incorrect. If you created this account with Google, choose Continue with Google.',
     'weak-password' => 'Use at least 8 characters for your password.',
     'network-request-failed' =>
       'We could not reach Firebase. Check your connection and try again.',

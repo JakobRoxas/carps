@@ -193,13 +193,17 @@ class _RosterViewState extends State<RosterView> {
                     fill: false,
                     padding: const EdgeInsets.fromLTRB(16, 20, 16, 32),
                     child: Builder(
-                      builder: (context) => ListView(
-                        padding: EdgeInsets.zero,
-                        children: switch (_tab) {
-                          0 => _pending(context, pending),
-                          1 => _approved(context, approved, ended),
-                          _ => _other(context, other),
-                        },
+                      builder: (context) => RefreshIndicator(
+                        onRefresh: app.refresh,
+                        child: ListView(
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          padding: EdgeInsets.zero,
+                          children: switch (_tab) {
+                            0 => _pending(context, pending),
+                            1 => _approved(context, approved, ended),
+                            _ => _other(context, other),
+                          },
+                        ),
                       ),
                     ),
                   ),

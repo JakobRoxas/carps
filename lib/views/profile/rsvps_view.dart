@@ -75,134 +75,141 @@ class _RsvpsViewState extends State<RsvpsView> {
                 child: ConstrainedBox(
                   constraints: const BoxConstraints(maxWidth: 720),
                   child: SizedBox.expand(
-                    child: CustomScrollView(
-                      slivers: [
-                        SliverToBoxAdapter(
-                          child: Container(
-                            decoration: BoxDecoration(
-                              color: c.canvas,
-                              borderRadius: const BorderRadius.vertical(
-                                bottom: Radius.elliptical(400, 40),
+                    child: RefreshIndicator(
+                      onRefresh: app.refresh,
+                      child: CustomScrollView(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        slivers: [
+                          SliverToBoxAdapter(
+                            child: Container(
+                              decoration: BoxDecoration(
+                                color: c.canvas,
+                                borderRadius: const BorderRadius.vertical(
+                                  bottom: Radius.elliptical(400, 40),
+                                ),
                               ),
-                            ),
-                            padding: const EdgeInsets.fromLTRB(16, 0, 16, 32),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: [
-                                Wrap(
-                                  alignment: WrapAlignment.spaceBetween,
-                                  crossAxisAlignment: WrapCrossAlignment.center,
-                                  spacing: 8,
-                                  runSpacing: 4,
-                                  children: [
-                                    Text(
-                                      'My RSVPs',
-                                      style: Theme.of(context)
-                                          .textTheme
-                                          .headlineLarge,
-                                    ),
-                                    TintPill('${items.length} upcoming'),
-                                  ],
-                                ),
-                                const SizedBox(height: 16),
-                                _MonthStrip(now: now),
-                                const SizedBox(height: 16),
-                                Row(
-                                  children: [
-                                    for (final d in days)
-                                      Expanded(
-                                        child: _DayCapsule(
-                                          day: d,
-                                          selected:
-                                              _day != null &&
-                                              _sameDay(_day!, d),
-                                          isToday: _sameDay(d, now),
-                                          hasRsvp: items.any(
-                                            (i) => _sameDay(i.event.start, d),
-                                          ),
-                                          onTap: () => setState(
-                                            () => _day =
-                                                _day != null &&
-                                                    _sameDay(_day!, d)
-                                                ? null
-                                                : d,
-                                          ),
-                                        ),
+                              padding: const EdgeInsets.fromLTRB(16, 0, 16, 32),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  Wrap(
+                                    alignment: WrapAlignment.spaceBetween,
+                                    crossAxisAlignment:
+                                        WrapCrossAlignment.center,
+                                    spacing: 8,
+                                    runSpacing: 4,
+                                    children: [
+                                      Text(
+                                        'My RSVPs',
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .headlineLarge,
                                       ),
-                                  ],
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                        SliverToBoxAdapter(
-                          child: DarkSheet(
-                            padding: EdgeInsets.fromLTRB(
-                              16,
-                              28,
-                              16,
-                              32 + MediaQuery.paddingOf(context).bottom,
-                            ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: [
-                                if (_day != null)
-                                  Padding(
-                                    padding: const EdgeInsets.only(bottom: 12),
-                                    child: Row(
-                                      children: [
+                                      TintPill('${items.length} upcoming'),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 16),
+                                  _MonthStrip(now: now),
+                                  const SizedBox(height: 16),
+                                  Row(
+                                    children: [
+                                      for (final d in days)
                                         Expanded(
-                                          child: Text(
-                                            'Showing ${shortDate(_day!)}',
-                                            style: TextStyle(
-                                              color: c.onInverseSecondary,
+                                          child: _DayCapsule(
+                                            day: d,
+                                            selected:
+                                                _day != null &&
+                                                _sameDay(_day!, d),
+                                            isToday: _sameDay(d, now),
+                                            hasRsvp: items.any(
+                                              (i) => _sameDay(i.event.start, d),
+                                            ),
+                                            onTap: () => setState(
+                                              () => _day =
+                                                  _day != null &&
+                                                      _sameDay(_day!, d)
+                                                  ? null
+                                                  : d,
                                             ),
                                           ),
                                         ),
-                                        TextButton(
-                                          onPressed: () =>
-                                              setState(() => _day = null),
-                                          child: const Text('Show all'),
-                                        ),
-                                      ],
-                                    ),
+                                    ],
                                   ),
-                                if (shown.isEmpty)
-                                  if (_day == null)
-                                    EmptyState(
-                                      title: 'No upcoming RSVPs',
-                                      message: 'Requests you send and private invitations you receive show up here.',
-                                      actionLabel: 'Find an event',
-                                      onAction: () => context.go('/home'),
-                                    )
-                                  else
-                                    const EmptyState(
-                                      title: 'No RSVPs on this day',
-                                      message: 'Choose another date or show all RSVPs.',
-                                    ),
-                                for (final item in shown)
-                                  _TimelineRow(
-                                    time: item.event.start,
-                                    highlight: item == upNext,
-                                    child: item == upNext
-                                        ? _UpNextCard(item: item)
-                                        : _RsvpCard(item: item),
-                                  ),
-                              ],
+                                ],
+                              ),
                             ),
                           ),
-                        ),
-                        // Extend the sheet color without adding scrollable
-                        // space. This also paints behind a bottom-edge bounce.
-                        SliverFillRemaining(
-                          hasScrollBody: false,
-                          fillOverscroll: true,
-                          child: ColoredBox(
-                            color: CarpsColors.light.inverse,
-                            child: const Align(),
+                          SliverToBoxAdapter(
+                            child: DarkSheet(
+                              padding: EdgeInsets.fromLTRB(
+                                16,
+                                28,
+                                16,
+                                32 + MediaQuery.paddingOf(context).bottom,
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  if (_day != null)
+                                    Padding(
+                                      padding: const EdgeInsets.only(
+                                        bottom: 12,
+                                      ),
+                                      child: Row(
+                                        children: [
+                                          Expanded(
+                                            child: Text(
+                                              'Showing ${shortDate(_day!)}',
+                                              style: TextStyle(
+                                                color: c.onInverseSecondary,
+                                              ),
+                                            ),
+                                          ),
+                                          TextButton(
+                                            onPressed: () =>
+                                                setState(() => _day = null),
+                                            child: const Text('Show all'),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  if (shown.isEmpty)
+                                    if (_day == null)
+                                      EmptyState(
+                                        title: 'No upcoming RSVPs',
+                                        message: 'Requests you send and private invitations you receive show up here.',
+                                        actionLabel: 'Find an event',
+                                        onAction: () => context.go('/home'),
+                                      )
+                                    else
+                                      const EmptyState(
+                                        title: 'No RSVPs on this day',
+                                        message: 'Choose another date or show all RSVPs.',
+                                      ),
+                                  for (final item in shown)
+                                    _TimelineRow(
+                                      time: item.event.start,
+                                      highlight: item == upNext,
+                                      child: item == upNext
+                                          ? _UpNextCard(item: item)
+                                          : _RsvpCard(item: item),
+                                    ),
+                                ],
+                              ),
+                            ),
                           ),
-                        ),
-                      ],
+                          // Extend the sheet color without adding scrollable
+                          // space. This also paints behind a bottom-edge bounce.
+                          SliverFillRemaining(
+                            hasScrollBody: false,
+                            fillOverscroll: true,
+                            child: ColoredBox(
+                              color: context.carps.inverse,
+                              child: const Align(),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),
@@ -439,7 +446,7 @@ class _UpNextCard extends StatelessWidget {
               '${dateTime(e.start)} · ${e.venue}',
               style: TextStyle(
                 fontSize: 12,
-                color: CarpsColors.light.textSecondary,
+                color: context.carps.textSecondary,
               ),
             ),
             const SizedBox(height: 12),
