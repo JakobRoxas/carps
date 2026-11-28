@@ -359,7 +359,7 @@ class _TermsStepState extends State<_TermsStep> {
             onPressed: _agree
                 ? () {
                     final app = context.appRead;
-                    app.service.updateUser(app.me!.copyWith(termsAccepted: true));
+                    app.profiles.updateUser(app.me!.copyWith(termsAccepted: true));
                     widget.onDone();
                   }
                 : null,
@@ -481,7 +481,7 @@ class _RoleStepState extends State<_RoleStep> {
                   : () {
                       final app = context.appRead;
                       final me = app.me!;
-                      app.service.updateUser(me.copyWith(
+                      app.profiles.updateUser(me.copyWith(
                         primaryRole: _role,
                         // Builders get hosting tools on this same account.
                         hostingEnabled:
@@ -589,7 +589,7 @@ class _ProfileStepState extends State<_ProfileStep> {
     final ok = _form.currentState!.validate();
     if (!ok || _interests.length < 3) return;
     final app = context.appRead;
-    app.service.updateUser(app.me!.copyWith(
+    app.profiles.updateUser(app.me!.copyWith(
       username: _username.text.trim().replaceFirst('@', ''),
       displayName: _name.text.trim(),
       area: _area.text.trim(),
@@ -605,7 +605,7 @@ class _ProfileStepState extends State<_ProfileStep> {
   @override
   Widget build(BuildContext context) {
     final c = context.carps;
-    final svc = context.svc;
+    final svc = context.app.profiles;
     final me = context.app.me!;
     final usernameProblem = _username.text.isEmpty
         ? null
@@ -854,7 +854,7 @@ class _PeopleStepState extends State<_PeopleStep> {
 
   void _finish() {
     final app = context.appRead;
-    app.service.updateUser(app.me!.copyWith(discoveryDone: true));
+    app.profiles.updateUser(app.me!.copyWith(discoveryDone: true));
     context.go('/home');
   }
 
@@ -863,7 +863,7 @@ class _PeopleStepState extends State<_PeopleStep> {
     final app = context.app;
     final me = app.me!;
     final c = context.carps;
-    final people = app.service.searchPeople(_query, excludeId: me.id);
+    final people = app.profiles.searchPeople(_query, excludeId: me.id);
     return SafeArea(
       child: Column(children: [
         Padding(
@@ -974,7 +974,7 @@ class _PeopleStepState extends State<_PeopleStep> {
                         height: 44,
                         expand: false,
                         onPressed: () {
-                          app.service.updateUser(me.copyWith(
+                          app.profiles.updateUser(me.copyWith(
                               contactDiscoveryOptIn:
                                   !me.contactDiscoveryOptIn));
                           showCarpsSnack(
@@ -1064,7 +1064,7 @@ class PersonFollowTile extends StatelessWidget {
           height: 40,
           expand: false,
           onPressed: () =>
-              runAction(context, () => app.service.toggleFollow(me.id, person.id)),
+              runAction(context, () => app.profiles.toggleFollow(me.id, person.id)),
         ),
       ]),
     );

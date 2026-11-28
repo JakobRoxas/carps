@@ -67,7 +67,7 @@ class _CarpsAppState extends State<CarpsApp> {
         themeMode: ThemeMode.light,
         routerConfig: _router,
         builder: (context, child) {
-          final error = AppScope.watch(context).repo.persistenceError;
+          final error = AppScope.watch(context).persistenceError;
           return Stack(
             children: [
               child ?? const SizedBox.shrink(),

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+
 import '../../core/carps_icons.dart';
 
 import '../../controllers/app_controller.dart';
@@ -56,18 +57,18 @@ class _SearchViewState extends State<SearchView> {
   }
 
   void _clear() => setState(() {
-        _topics.clear();
-        _areas.clear();
-        _date = _DateFilter.any;
-        _picked = null;
-        _builder.clear();
-        _query.clear();
-      });
+    _topics.clear();
+    _areas.clear();
+    _date = _DateFilter.any;
+    _picked = null;
+    _builder.clear();
+    _query.clear();
+  });
 
   @override
   Widget build(BuildContext context) {
     final app = context.app;
-    final svc = app.service;
+    final svc = app.events;
     final c = context.carps;
     final (from, to) = _range(svc.now);
     final results = svc.search(
@@ -79,22 +80,35 @@ class _SearchViewState extends State<SearchView> {
       to: to,
       builderQuery: _builder.text,
     );
+    final people = _query.text.trim().isEmpty
+        ? const <UserProfile>[]
+        : app.profiles.searchPeople(_query.text, excludeId: app.me?.id);
 
-    Widget chipGroup<T>(String label, List<T> items, bool Function(T) sel,
-        void Function(T) toggle, String Function(T) text) {
+    Widget chipGroup<T>(
+      String label,
+      List<T> items,
+      bool Function(T) sel,
+      void Function(T) toggle,
+      String Function(T) text,
+    ) {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           CaptionLabel(label),
           const SizedBox(height: 8),
-          Wrap(spacing: 8, runSpacing: 8, children: [
-            for (final i in items)
-              SelectChip(
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final i in items)
+                SelectChip(
                   label: text(i),
                   selected: sel(i),
                   icon: sel(i) ? CarpsIcons.checkBold : null,
-                  onTap: () => setState(() => toggle(i))),
-          ]),
+                  onTap: () => setState(() => toggle(i)),
+                ),
+            ],
+          ),
           const SizedBox(height: 16),
         ],
       );
@@ -109,119 +123,154 @@ class _SearchViewState extends State<SearchView> {
             Container(
               decoration: const BoxDecoration(
                 color: Color(0xFF0A0A0A),
-                borderRadius:
-                    BorderRadius.vertical(bottom: Radius.circular(36)),
+                borderRadius: BorderRadius.vertical(
+                  bottom: Radius.circular(36),
+                ),
               ),
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
               child: Theme(
                 data: Theme.of(context).copyWith(
-                  inputDecorationTheme: Theme.of(context)
-                      .inputDecorationTheme
+                  inputDecorationTheme: Theme.of(context).inputDecorationTheme
                       .copyWith(fillColor: const Color(0xFF1F1F1F)),
                 ),
-                child: Column(children: [
-                  Row(children: [
-                    Expanded(
-                      child: TextField(
-                        controller: _query,
-                        autofocus: true,
-                        style: const TextStyle(color: Colors.white),
-                        onChanged: (_) => setState(() {}),
-                        decoration: InputDecoration(
-                          hintText: 'Search events, builders, topics',
-                          hintStyle: const TextStyle(color: Color(0xFFA3A3A3)),
-                          border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(999),
-                              borderSide: BorderSide.none),
-                          enabledBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(999),
-                              borderSide: BorderSide.none),
-                          prefixIcon: const Icon(
-                              CarpsIcons.magnifyingGlass,
-                              color: Color(0xFFA3A3A3)),
-                          suffixIcon: _query.text.isEmpty
-                              ? null
-                              : IconButton(
-                                  tooltip: 'Clear search',
-                                  icon: const Icon(CarpsIcons.x,
-                                      color: Color(0xFFA3A3A3)),
-                                  onPressed: () =>
-                                      setState(() => _query.clear())),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Material(
-                      color: c.accentFill,
-                      shape: const StadiumBorder(),
-                      child: InkWell(
-                        customBorder: const StadiumBorder(),
-                        onTap: () =>
-                            setState(() => _showFilters = !_showFilters),
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 16, vertical: 14),
-                          child: Row(children: [
-                            Icon(CarpsIcons.slidersHorizontal,
-                                size: 18, color: c.onAccent),
-                            const SizedBox(width: 6),
-                            Text('Filters',
-                                style: TextStyle(
-                                    color: c.onAccent,
-                                    fontWeight: FontWeight.w600)),
-                            if (_filterCount > 0) ...[
-                              const SizedBox(width: 6),
-                              CircleAvatar(
-                                radius: 10,
-                                backgroundColor: c.inverse,
-                                child: Text('$_filterCount',
-                                    style: const TextStyle(
-                                        color: Colors.white, fontSize: 11)),
-                              ),
-                            ],
-                          ]),
-                        ),
-                      ),
-                    ),
-                  ]),
-                  if (_filterCount > 0) ...[
-                    const SizedBox(height: 12),
-                    SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      child: Row(children: [
-                        const Text('ACTIVE:',
-                            style: TextStyle(
+                child: Column(
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: _query,
+                            autofocus: true,
+                            style: const TextStyle(color: Colors.white),
+                            onChanged: (_) => setState(() {}),
+                            decoration: InputDecoration(
+                              hintText: 'Search events, builders, topics',
+                              hintStyle: const TextStyle(
                                 color: Color(0xFFA3A3A3),
-                                fontSize: 11,
-                                letterSpacing: 0.6)),
-                        for (final label in [
-                          ..._topics,
-                          ..._areas,
-                          if (_date != _DateFilter.any)
-                            switch (_date) {
-                              _DateFilter.today => 'Today',
-                              _DateFilter.weekend => 'This weekend',
-                              _ => 'Picked date',
-                            },
-                          if (_builder.text.trim().isNotEmpty)
-                            'Builder: ${_builder.text.trim()}',
-                        ])
-                          Padding(
-                            padding: const EdgeInsets.only(left: 8),
-                            child: Chip(
-                              label: Text(label,
-                                  style: const TextStyle(
-                                      color: Colors.white, fontSize: 12)),
-                              backgroundColor: const Color(0xFF1F1F1F),
-                              side: BorderSide.none,
-                              shape: const StadiumBorder(),
-                              visualDensity: VisualDensity.compact,
+                              ),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(999),
+                                borderSide: BorderSide.none,
+                              ),
+                              enabledBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(999),
+                                borderSide: BorderSide.none,
+                              ),
+                              prefixIcon: const Icon(
+                                CarpsIcons.magnifyingGlass,
+                                color: Color(0xFFA3A3A3),
+                              ),
+                              suffixIcon: _query.text.isEmpty
+                                  ? null
+                                  : IconButton(
+                                      tooltip: 'Clear search',
+                                      icon: const Icon(
+                                        CarpsIcons.x,
+                                        color: Color(0xFFA3A3A3),
+                                      ),
+                                      onPressed: () =>
+                                          setState(() => _query.clear()),
+                                    ),
                             ),
                           ),
-                      ]),
+                        ),
+                        const SizedBox(width: 10),
+                        Material(
+                          color: c.accentFill,
+                          shape: const StadiumBorder(),
+                          child: InkWell(
+                            customBorder: const StadiumBorder(),
+                            onTap: () =>
+                                setState(() => _showFilters = !_showFilters),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 14,
+                              ),
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    CarpsIcons.slidersHorizontal,
+                                    size: 18,
+                                    color: c.onAccent,
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    'Filters',
+                                    style: TextStyle(
+                                      color: c.onAccent,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                  if (_filterCount > 0) ...[
+                                    const SizedBox(width: 6),
+                                    CircleAvatar(
+                                      radius: 10,
+                                      backgroundColor: c.inverse,
+                                      child: Text(
+                                        '$_filterCount',
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 11,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
+                    if (_filterCount > 0) ...[
+                      const SizedBox(height: 12),
+                      SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: Row(
+                          children: [
+                            const Text(
+                              'ACTIVE:',
+                              style: TextStyle(
+                                color: Color(0xFFA3A3A3),
+                                fontSize: 11,
+                                letterSpacing: 0.6,
+                              ),
+                            ),
+                            for (final label in [
+                              ..._topics,
+                              ..._areas,
+                              if (_date != _DateFilter.any)
+                                switch (_date) {
+                                  _DateFilter.today => 'Today',
+                                  _DateFilter.weekend => 'This weekend',
+                                  _ => 'Picked date',
+                                },
+                              if (_builder.text.trim().isNotEmpty)
+                                'Builder: ${_builder.text.trim()}',
+                            ])
+                              Padding(
+                                padding: const EdgeInsets.only(left: 8),
+                                child: Chip(
+                                  label: Text(
+                                    label,
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                  backgroundColor: const Color(0xFF1F1F1F),
+                                  side: BorderSide.none,
+                                  shape: const StadiumBorder(),
+                                  visualDensity: VisualDensity.compact,
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ],
-                ]),
+                ),
               ),
             ),
             Expanded(
@@ -235,75 +284,99 @@ class _SearchViewState extends State<SearchView> {
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
                           if (_showFilters) ...[
-                            Row(children: [
-                              Icon(CarpsIcons.funnelSimple,
-                                  color: c.accentFill),
-                              const SizedBox(width: 8),
-                              Text('Filter Discovery',
-                                  style:
-                                      Theme.of(context).textTheme.titleLarge),
-                              const Spacer(),
-                              Text('$_filterCount filters applied',
-                                  style: Theme.of(context).textTheme.bodySmall),
-                            ]),
+                            Row(
+                              children: [
+                                Icon(
+                                  CarpsIcons.funnelSimple,
+                                  color: c.accentFill,
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  'Filter Discovery',
+                                  style: Theme.of(context).textTheme.titleLarge,
+                                ),
+                                const Spacer(),
+                                Text(
+                                  '$_filterCount filters applied',
+                                  style: Theme.of(context).textTheme.bodySmall,
+                                ),
+                              ],
+                            ),
                             const SizedBox(height: 16),
-                            chipGroup<String>('Topic / category', kTopics,
-                                _topics.contains, (t) {
-                              _topics.contains(t)
-                                  ? _topics.remove(t)
-                                  : _topics.add(t);
-                            }, (t) => t),
+                            chipGroup<String>(
+                              'Topic / category',
+                              kTopics,
+                              _topics.contains,
+                              (t) {
+                                _topics.contains(t)
+                                    ? _topics.remove(t)
+                                    : _topics.add(t);
+                              },
+                              (t) => t,
+                            ),
                             const CaptionLabel('Date & schedule'),
                             const SizedBox(height: 8),
-                            Wrap(spacing: 8, runSpacing: 8, children: [
-                              SelectChip(
-                                label: 'Today',
-                                selected: _date == _DateFilter.today,
-                                icon: CarpsIcons.sun,
-                                onTap: () => setState(() => _date =
-                                    _date == _DateFilter.today
+                            Wrap(
+                              spacing: 8,
+                              runSpacing: 8,
+                              children: [
+                                SelectChip(
+                                  label: 'Today',
+                                  selected: _date == _DateFilter.today,
+                                  icon: CarpsIcons.sun,
+                                  onTap: () => setState(
+                                    () => _date = _date == _DateFilter.today
                                         ? _DateFilter.any
-                                        : _DateFilter.today),
-                              ),
-                              SelectChip(
-                                label: 'This weekend',
-                                selected: _date == _DateFilter.weekend,
-                                icon: CarpsIcons.calendarStar,
-                                onTap: () => setState(() => _date =
-                                    _date == _DateFilter.weekend
+                                        : _DateFilter.today,
+                                  ),
+                                ),
+                                SelectChip(
+                                  label: 'This weekend',
+                                  selected: _date == _DateFilter.weekend,
+                                  icon: CarpsIcons.calendarStar,
+                                  onTap: () => setState(
+                                    () => _date = _date == _DateFilter.weekend
                                         ? _DateFilter.any
-                                        : _DateFilter.weekend),
-                              ),
-                              SelectChip(
-                                label: _picked == null
-                                    ? 'Pick a date…'
-                                    : '${_picked!.month}/${_picked!.day}',
-                                selected: _date == _DateFilter.pick,
-                                icon: CarpsIcons.calendarBlank,
-                                onTap: () async {
-                                  final d = await showDatePicker(
-                                    context: context,
-                                    firstDate: svc.now,
-                                    lastDate:
-                                        svc.now.add(const Duration(days: 180)),
-                                    initialDate: svc.now,
-                                  );
-                                  if (d != null) {
-                                    setState(() {
-                                      _picked = d;
-                                      _date = _DateFilter.pick;
-                                    });
-                                  }
-                                },
-                              ),
-                            ]),
+                                        : _DateFilter.weekend,
+                                  ),
+                                ),
+                                SelectChip(
+                                  label: _picked == null
+                                      ? 'Pick a date…'
+                                      : '${_picked!.month}/${_picked!.day}',
+                                  selected: _date == _DateFilter.pick,
+                                  icon: CarpsIcons.calendarBlank,
+                                  onTap: () async {
+                                    final d = await showDatePicker(
+                                      context: context,
+                                      firstDate: svc.now,
+                                      lastDate: svc.now.add(
+                                        const Duration(days: 180),
+                                      ),
+                                      initialDate: svc.now,
+                                    );
+                                    if (d != null) {
+                                      setState(() {
+                                        _picked = d;
+                                        _date = _DateFilter.pick;
+                                      });
+                                    }
+                                  },
+                                ),
+                              ],
+                            ),
                             const SizedBox(height: 16),
-                            chipGroup<String>('Area / hub', kAreas,
-                                _areas.contains, (a) {
-                              _areas.contains(a)
-                                  ? _areas.remove(a)
-                                  : _areas.add(a);
-                            }, (a) => a),
+                            chipGroup<String>(
+                              'Area / hub',
+                              kAreas,
+                              _areas.contains,
+                              (a) {
+                                _areas.contains(a)
+                                    ? _areas.remove(a)
+                                    : _areas.add(a);
+                              },
+                              (a) => a,
+                            ),
                             const CaptionLabel('Builder / community host'),
                             const SizedBox(height: 8),
                             TextField(
@@ -313,42 +386,49 @@ class _SearchViewState extends State<SearchView> {
                                 hintText:
                                     'Search by community organizer or guild…',
                                 prefixIcon: Icon(
-                                    CarpsIcons.userCircleGear,
-                                    size: 20),
+                                  CarpsIcons.userCircleGear,
+                                  size: 20,
+                                ),
                               ),
                             ),
                             const SizedBox(height: 16),
-                            Row(children: [
-                              Expanded(
-                                child: CarpsButton(
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: CarpsButton(
                                     label: 'Clear all',
                                     kind: CarpsButtonKind.muted,
-                                    onPressed: _clear),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                flex: 2,
-                                child: CarpsButton(
-                                  label: 'Show results (${results.length})',
-                                  onPressed: () =>
-                                      setState(() => _showFilters = false),
+                                    onPressed: _clear,
+                                  ),
                                 ),
-                              ),
-                            ]),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  flex: 2,
+                                  child: CarpsButton(
+                                    label: 'Show results (${results.length})',
+                                    onPressed: () =>
+                                        setState(() => _showFilters = false),
+                                  ),
+                                ),
+                              ],
+                            ),
                             const SizedBox(height: 24),
                           ],
-                          Row(children: [
-                            Text('Explore Results',
-                                style: Theme.of(context).textTheme.titleLarge),
-                            const SizedBox(width: 8),
-                            TintPill('${results.length} matches'),
-                          ]),
+                          Row(
+                            children: [
+                              Text(
+                                'Explore Results',
+                                style: Theme.of(context).textTheme.titleLarge,
+                              ),
+                              const SizedBox(width: 8),
+                              TintPill('${results.length} matches'),
+                            ],
+                          ),
                           const SizedBox(height: 12),
                           if (results.isEmpty)
                             EmptyState(
                               title: 'No events match',
-                              message:
-                                  'Try fewer filters or a different area. Private events never appear in search.',
+                              message: 'Try fewer filters or a different area. Private events never appear in search.',
                               actionLabel: 'Clear filters',
                               onAction: _clear,
                             ),
@@ -361,6 +441,79 @@ class _SearchViewState extends State<SearchView> {
                               onPressed: () => context.go('/home'),
                               child: const Text('Back to For You'),
                             ),
+                          if (people.isNotEmpty) ...[
+                            const SizedBox(height: 24),
+                            Text(
+                              'Find People',
+                              style: Theme.of(context).textTheme.titleLarge,
+                            ),
+                            const SizedBox(height: 12),
+                            Column(
+                              children: [
+                                for (var i = 0; i < people.length; i++) ...[
+                                  if (i > 0)
+                                    Divider(
+                                      height: 1,
+                                      thickness: 1,
+                                      color: Theme.of(context).dividerColor
+                                          .withValues(alpha: 0.35),
+                                    ),
+                                  Material(
+                                    color: Colors.transparent,
+                                    borderRadius: BorderRadius.circular(16),
+                                    clipBehavior: Clip.antiAlias,
+                                    child: InkWell(
+                                      key: ValueKey('person-${people[i].id}'),
+                                      borderRadius: BorderRadius.circular(16),
+                                      onTap: () =>
+                                          context.push('/user/${people[i].id}'),
+                                      child: Padding(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 8,
+                                          vertical: 10,
+                                        ),
+                                        child: Row(
+                                          children: [
+                                            CarpsAvatar(
+                                              user: people[i],
+                                              size: 40,
+                                            ),
+                                            const SizedBox(width: 12),
+                                            Expanded(
+                                              child: Column(
+                                                crossAxisAlignment:
+                                                    CrossAxisAlignment.start,
+                                                children: [
+                                                  Text(
+                                                    people[i].displayName,
+                                                    style: Theme.of(context)
+                                                        .textTheme
+                                                        .bodyLarge,
+                                                  ),
+                                                  Text(
+                                                    people[i].hostingEnabled
+                                                        ? '${people[i].handle} · Builder'
+                                                        : people[i].handle,
+                                                    style: Theme.of(context)
+                                                        .textTheme
+                                                        .bodySmall,
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                            const Icon(
+                                              CarpsIcons.caretRight,
+                                              size: 18,
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ],
                         ],
                       ),
                     ),

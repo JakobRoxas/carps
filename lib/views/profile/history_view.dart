@@ -27,7 +27,7 @@ class _HistoryViewState extends State<HistoryView> {
 
   void _load() {
     final app = context.appRead;
-    _future = app.lookup(() => app.service.historyFor(app.me!.id));
+    _future = app.lookup(() => app.profiles.historyFor(app.me!.id));
   }
 
   @override
@@ -37,7 +37,7 @@ class _HistoryViewState extends State<HistoryView> {
     // Re-read when shared state changes (e.g. after a review is submitted).
     final entries = app.simulateLookupFailure
         ? null
-        : app.service.historyFor(app.me!.id);
+        : app.profiles.historyFor(app.me!.id);
     return Scaffold(
       body: SafeArea(
         bottom: false,
@@ -80,7 +80,7 @@ class _HistoryViewState extends State<HistoryView> {
                                           shape: BoxShape.circle)),
                                   const SizedBox(width: 8),
                                   Text(
-                                      '${app.service.attendedCount(app.me!.id)} events attended',
+                                      '${app.profiles.attendedCount(app.me!.id)} events attended',
                                       style: const TextStyle(
                                           fontSize: 12,
                                           fontWeight: FontWeight.w500)),
@@ -138,7 +138,7 @@ class _HistoryRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final d = context.carps;
-    final svc = context.app.service;
+    final svc = context.app.profiles;
     final e = entry.event;
     final active = entry.state == HistoryState.checkedIn;
     final chip = switch (entry.state) {
@@ -264,7 +264,7 @@ class _HistoryRow extends StatelessWidget {
                                         borderRadius:
                                             BorderRadius.circular(999)),
                                     child: Text(
-                                        'Rated ${svc.repo.reviews.firstWhere((r) => r.eventId == e.id && r.authorId == context.app.me!.id).rating}.0 ★',
+                                        'Rated ${context.app.data.reviewByAuthor(e.id, context.app.me!.id)!.rating}.0 ★',
                                         style: TextStyle(
                                             color: d.accentOnInverse,
                                             fontSize: 13)),

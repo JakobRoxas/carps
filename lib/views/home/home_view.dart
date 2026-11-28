@@ -19,15 +19,125 @@ class HomeView extends StatefulWidget {
 
 class _HomeViewState extends State<HomeView> {
   int _tab = 0; // 0 For You · 1 Hosting
+  final _search = TextEditingController();
+  final _topics = <String>{};
+  final _areas = <String>{};
+
+  @override
+  void dispose() {
+    _search.dispose();
+    super.dispose();
+  }
+
+  List<CarpsEvent> _filteredForYou(List<CarpsEvent> events) {
+    final q = _search.text.trim().toLowerCase();
+    return events.where((event) {
+      final text = '${event.title} ${event.topic} ${event.area} ${event.venue}'
+          .toLowerCase();
+      if (q.isNotEmpty && !text.contains(q)) return false;
+      if (_topics.isNotEmpty && !_topics.contains(event.topic)) return false;
+      if (_areas.isNotEmpty && !_areas.contains(event.area)) return false;
+      return true;
+    }).toList();
+  }
+
+  Future<void> _openFilters() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (sheetContext) {
+        return StatefulBuilder(
+          builder: (context, setSheetState) => SafeArea(
+            top: false,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Filter For You',
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                  const SizedBox(height: 16),
+                  const CaptionLabel('Topic'),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      for (final topic in kTopics)
+                        SelectChip(
+                          label: topic,
+                          selected: _topics.contains(topic),
+                          onTap: () => setSheetState(() {
+                            _topics.contains(topic)
+                                ? _topics.remove(topic)
+                                : _topics.add(topic);
+                          }),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  const CaptionLabel('Area'),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      for (final area in kAreas)
+                        SelectChip(
+                          label: area,
+                          selected: _areas.contains(area),
+                          onTap: () => setSheetState(() {
+                            _areas.contains(area)
+                                ? _areas.remove(area)
+                                : _areas.add(area);
+                          }),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 20),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: CarpsButton(
+                          label: 'Clear',
+                          kind: CarpsButtonKind.secondary,
+                          onPressed: () => setSheetState(() {
+                            _topics.clear();
+                            _areas.clear();
+                          }),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: CarpsButton(
+                          label: 'Apply',
+                          onPressed: () => Navigator.pop(sheetContext),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+    if (mounted) setState(() {});
+  }
 
   @override
   Widget build(BuildContext context) {
     final app = context.app;
     final me = app.me!;
-    final svc = app.service;
+    final svc = app.events;
     final c = context.carps;
     final hosting = svc.hostingEvents(me.id);
-    final forYou = svc.forYou(me.id);
+    final forYou = _filteredForYou(svc.forYou(me.id));
+    final filterCount = _topics.length + _areas.length;
     final width = MediaQuery.sizeOf(context).width;
     final columns = width >= 1100 ? 3 : (width >= 700 ? 2 : 1);
 
@@ -61,21 +171,6 @@ class _HomeViewState extends State<HomeView> {
                                             style: Theme.of(context)
                                                 .textTheme
                                                 .headlineMedium,
-                                          ),
-                                        ),
-                                        const SizedBox(width: 6),
-                                        Icon(
-                                          CarpsIcons.lightningFill,
-                                          color: c.accentFill,
-                                          size: 20,
-                                        ),
-                                        const SizedBox(width: 6),
-                                        CircleAvatar(
-                                          radius: 16,
-                                          backgroundColor: c.accentTint,
-                                          child: Image.asset(
-                                            'assets/images/carp_mascot_small.png',
-                                            width: 20,
                                           ),
                                         ),
                                       ],
@@ -132,40 +227,49 @@ class _HomeViewState extends State<HomeView> {
                             ],
                           ),
                           const SizedBox(height: 16),
-                          Semantics(
-                            button: true,
-                            label: 'Search events',
-                            child: InkWell(
+                          Container(
+                            height: 52,
+                            decoration: BoxDecoration(
+                              color: c.muted,
                               borderRadius: BorderRadius.circular(999),
-                              onTap: () => context.push('/search'),
-                              child: Container(
-                                height: 52,
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 16,
+                            ),
+                            child: TextField(
+                              controller: _search,
+                              onChanged: (_) => setState(() {}),
+                              decoration: InputDecoration(
+                                hintText:
+                                    'Search event, topic, area or builder',
+                                hintStyle: TextStyle(
+                                  color: c.textSecondary,
+                                  fontSize: 14,
                                 ),
-                                decoration: BoxDecoration(
-                                  color: c.muted,
-                                  borderRadius: BorderRadius.circular(999),
+                                border: InputBorder.none,
+                                prefixIcon: Icon(
+                                  CarpsIcons.magnifyingGlass,
+                                  color: c.textSecondary,
                                 ),
-                                child: Row(
+                                suffixIcon: Row(
+                                  mainAxisSize: MainAxisSize.min,
                                   children: [
-                                    Icon(
-                                      CarpsIcons.magnifyingGlass,
-                                      color: c.textSecondary,
-                                    ),
-                                    const SizedBox(width: 12),
-                                    Expanded(
-                                      child: Text(
-                                        'event/topic/date/area/builder',
-                                        style: TextStyle(
-                                          color: c.textSecondary,
-                                          fontSize: 14,
+                                    if (filterCount > 0)
+                                      CircleAvatar(
+                                        radius: 10,
+                                        backgroundColor: c.accentFill,
+                                        child: Text(
+                                          '$filterCount',
+                                          style: TextStyle(
+                                            color: c.onAccent,
+                                            fontSize: 10,
+                                          ),
                                         ),
                                       ),
-                                    ),
-                                    Icon(
-                                      CarpsIcons.slidersHorizontal,
-                                      color: c.textSecondary,
+                                    IconButton(
+                                      tooltip: 'Filter For You',
+                                      onPressed: _openFilters,
+                                      icon: Icon(
+                                        CarpsIcons.slidersHorizontal,
+                                        color: c.textSecondary,
+                                      ),
                                     ),
                                   ],
                                 ),
@@ -267,8 +371,8 @@ class _HostingList extends StatelessWidget {
   Widget build(BuildContext context) {
     final app = context.app;
     final me = app.me!;
-    final svc = app.service;
-    final coHostInvites = svc.repo.invitations
+    final svc = app.events;
+    final coHostInvites = app.data.invitations
         .where(
           (i) =>
               i.inviteeId == me.id &&
@@ -338,9 +442,9 @@ class _CoHostInviteCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final app = context.app;
-    final svc = app.service;
-    final event = svc.repo.event(invitation.eventId);
-    final from = svc.repo.user(invitation.invitedById);
+    final svc = app.events;
+    final event = app.data.eventById(invitation.eventId);
+    final from = app.data.userById(invitation.invitedById);
     if (event == null) return const SizedBox.shrink();
     return SurfaceCard(
       color: context.carps.accentTint,

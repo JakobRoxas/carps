@@ -2,6 +2,10 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import 'dart:convert';
+
+import 'package:http/http.dart' as http;
+
 import '../../core/carps_icons.dart';
 
 import '../../controllers/app_controller.dart';
@@ -26,8 +30,9 @@ class _EventFormViewState extends State<EventFormView> {
   final _venue = TextEditingController();
   final _description = TextEditingController();
   final _capacity = TextEditingController();
+  final _area = TextEditingController();
+  final _peopleQuery = TextEditingController();
   String _topic = kTopics[1];
-  String _area = kAreas.first;
   EventVisibility _visibility = EventVisibility.public;
   bool _featured = false;
   String? _cover = DemoPhotos.pickleball;
@@ -36,6 +41,8 @@ class _EventFormViewState extends State<EventFormView> {
   int _tab = 0;
   String? _error;
   bool _busy = false;
+  bool _searchingLocations = false;
+  List<Map<String, dynamic>> _locationSuggestions = const [];
   final _coHosts = <String>{};
   final _guests = <String>{};
   CarpsEvent? _editing;
@@ -45,12 +52,13 @@ class _EventFormViewState extends State<EventFormView> {
     super.initState();
     _title.addListener(_refreshPreview);
     _venue.addListener(_refreshPreview);
-    final svc = context.appRead.service;
+    final app = context.appRead;
+    final svc = app.events;
     final now = svc.now;
     _start = DateTime(now.year, now.month, now.day + 3, 18);
     _end = _start.add(const Duration(hours: 3));
     if (widget.eventId != null) {
-      final e = svc.repo.event(widget.eventId!);
+      final e = app.data.eventById(widget.eventId!);
       if (e != null) {
         _editing = e;
         _title.text = e.title;
@@ -58,7 +66,7 @@ class _EventFormViewState extends State<EventFormView> {
         _description.text = e.description;
         _capacity.text = e.capacity?.toString() ?? '';
         _topic = e.topic;
-        _area = kAreas.contains(e.area) ? e.area : kAreas.first;
+        _area.text = e.area;
         _visibility = e.visibility;
         _featured = e.featuredOnProfile;
         _cover = e.coverAsset;
@@ -72,6 +80,8 @@ class _EventFormViewState extends State<EventFormView> {
   void dispose() {
     _title.removeListener(_refreshPreview);
     _venue.removeListener(_refreshPreview);
+    _area.dispose();
+    _peopleQuery.dispose();
     _title.dispose();
     _venue.dispose();
     _description.dispose();
@@ -83,9 +93,44 @@ class _EventFormViewState extends State<EventFormView> {
     if (mounted) setState(() {});
   }
 
+  Future<void> _searchLocations(String query) async {
+    final text = query.trim();
+    if (text.length < 3) {
+      if (mounted) setState(() => _locationSuggestions = const []);
+      return;
+    }
+    setState(() => _searchingLocations = true);
+    try {
+      final uri = Uri.https('nominatim.openstreetmap.org', '/search', {
+        'q': text,
+        'format': 'json',
+        'addressdetails': '1',
+        'limit': '5',
+        'countrycodes': 'ph',
+      });
+      final response = await http.get(
+        uri,
+        headers: const {'User-Agent': 'CARPS Flutter app'},
+      );
+      if (!mounted) return;
+      if (response.statusCode == 200) {
+        final decoded = jsonDecode(response.body);
+        setState(() {
+          _locationSuggestions = decoded is List
+              ? decoded.whereType<Map<String, dynamic>>().toList()
+              : const [];
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _locationSuggestions = const []);
+    } finally {
+      if (mounted) setState(() => _searchingLocations = false);
+    }
+  }
+
   Future<void> _submit() async {
     final app = context.appRead;
-    final svc = app.service;
+    final svc = app.events;
     final me = app.me!;
     final problem = svc.validateEventDraft(
       title: _title.text,
@@ -116,7 +161,7 @@ class _EventFormViewState extends State<EventFormView> {
           description: _description.text,
           topic: _topic,
           venue: _venue.text,
-          area: _area,
+          area: _area.text,
           start: _start,
           end: _end,
           visibility: _visibility,
@@ -139,7 +184,7 @@ class _EventFormViewState extends State<EventFormView> {
           description: _description.text,
           topic: _topic,
           venue: _venue.text,
-          area: _area,
+          area: _area.text,
           start: _start,
           end: _end,
           visibility: _visibility,
@@ -535,20 +580,73 @@ class _EventFormViewState extends State<EventFormView> {
         const SizedBox(height: 8),
         TextField(
           controller: _venue,
+          onChanged: _searchLocations,
           decoration: const InputDecoration(
             hintText: 'The Upper Deck Sports Center, Court 3',
             prefixIcon: Icon(CarpsIcons.mapPin, size: 20),
           ),
         ),
+        if (_searchingLocations)
+          const Padding(
+            padding: EdgeInsets.only(top: 8),
+            child: LinearProgressIndicator(minHeight: 2),
+          ),
+        if (_locationSuggestions.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          SurfaceCard(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+            child: Column(
+              children: [
+                for (final location in _locationSuggestions)
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: Icon(CarpsIcons.mapPin, color: d.accentFill),
+                    title: Text(
+                      location['name']?.toString() ??
+                          location['display_name']?.toString() ??
+                          '',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    subtitle: Text(
+                      location['display_name']?.toString() ?? '',
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    onTap: () {
+                      final address =
+                          location['address'] is Map<String, dynamic>
+                          ? location['address'] as Map<String, dynamic>
+                          : const <String, dynamic>{};
+                      final area =
+                          address['city'] ??
+                          address['municipality'] ??
+                          address['suburb'] ??
+                          address['county'] ??
+                          address['state'];
+                      setState(() {
+                        _venue.text =
+                            location['display_name']?.toString() ?? _venue.text;
+                        if (area != null) _area.text = area.toString();
+                        _locationSuggestions = const [];
+                      });
+                      _venue.selection = TextSelection.collapsed(
+                        offset: _venue.text.length,
+                      );
+                    },
+                  ),
+              ],
+            ),
+          ),
+        ],
         const SizedBox(height: 12),
-        DropdownButtonFormField<String>(
-          initialValue: _area,
-          dropdownColor: d.inverseRaised,
-          decoration: const InputDecoration(labelText: 'Area'),
-          items: [
-            for (final a in kAreas) DropdownMenuItem(value: a, child: Text(a)),
-          ],
-          onChanged: (v) => setState(() => _area = v!),
+        TextField(
+          controller: _area,
+          onChanged: (_) => setState(() {}),
+          decoration: const InputDecoration(
+            labelText: 'Area / neighborhood',
+            hintText: 'Makati, Salcedo Village, Bonifacio Global City',
+          ),
         ),
         const SizedBox(height: 16),
         const CaptionLabel('Description'),
@@ -604,7 +702,7 @@ class _EventFormViewState extends State<EventFormView> {
 
   Widget _time(BuildContext context) {
     final d = context.carps;
-    final svc = context.svc;
+    final svc = context.app.events;
     Future<void> pick(bool isStart) async {
       final base = isStart ? _start : _end;
       final date = await showDatePicker(
@@ -787,15 +885,15 @@ class _EventFormViewState extends State<EventFormView> {
 
   Widget _guestsTab(BuildContext context) {
     final app = context.app;
-    final svc = app.service;
+    final svc = app.events;
     final me = app.me!;
     final d = context.carps;
-    final builders = svc.repo.users
+    final builders = context.appRead.data.users
         .where(
           (u) => u.hostingEnabled && u.id != me.id && u.displayName.isNotEmpty,
         )
         .toList();
-    final people = svc.repo.users
+    final people = context.appRead.data.users
         .where((u) => u.id != me.id && u.displayName.isNotEmpty && !u.isAdmin)
         .toList();
     bool alreadyCoHost(String id) =>
@@ -804,10 +902,34 @@ class _EventFormViewState extends State<EventFormView> {
             svc.coHostInvitation(_editing!.id, id) != null);
     bool alreadyGuest(String id) =>
         _editing != null && svc.guestInvitation(_editing!.id, id) != null;
+    final query = _peopleQuery.text;
+    final visibleBuilders = builders.where((b) {
+      final q = query.toLowerCase().trim();
+      return q.isEmpty ||
+          b.displayName.toLowerCase().contains(q) ||
+          b.username.contains(q) ||
+          (b.builderName?.toLowerCase().contains(q) ?? false);
+    }).toList();
+    final visiblePeople = people.where((p) {
+      final q = query.toLowerCase().trim();
+      return q.isEmpty ||
+          p.displayName.toLowerCase().contains(q) ||
+          p.username.contains(q) ||
+          (p.builderName?.toLowerCase().contains(q) ?? false);
+    }).toList();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        TextField(
+          controller: _peopleQuery,
+          onChanged: (_) => setState(() {}),
+          decoration: const InputDecoration(
+            hintText: 'Search co-hosts and attendees',
+            prefixIcon: Icon(CarpsIcons.magnifyingGlass, size: 20),
+          ),
+        ),
+        const SizedBox(height: 16),
         Text('Co-hosts', style: Theme.of(context).textTheme.titleLarge),
         const SizedBox(height: 4),
         Text(
@@ -815,7 +937,7 @@ class _EventFormViewState extends State<EventFormView> {
           style: TextStyle(fontSize: 12, color: d.textSecondary),
         ),
         const SizedBox(height: 12),
-        for (final b in builders)
+        for (final b in visibleBuilders)
           _PersonCheck(
             user: b,
             subtitle: b.builderName ?? b.handle,
@@ -842,7 +964,7 @@ class _EventFormViewState extends State<EventFormView> {
           style: TextStyle(fontSize: 12, color: d.textSecondary),
         ),
         const SizedBox(height: 12),
-        for (final p in people)
+        for (final p in visiblePeople)
           _PersonCheck(
             user: p,
             subtitle: p.hostingEnabled
@@ -888,7 +1010,11 @@ class _PersonCheck extends StatelessWidget {
     return ListTile(
       contentPadding: EdgeInsets.zero,
       enabled: enabled,
-      leading: CarpsAvatar(user: user, size: 40),
+      leading: InkWell(
+        borderRadius: BorderRadius.circular(20),
+        onTap: () => context.push('/user/${user.id}'),
+        child: CarpsAvatar(user: user, size: 40),
+      ),
       title: Text(user.displayName),
       subtitle: Text(subtitle, style: Theme.of(context).textTheme.bodySmall),
       trailing: locked

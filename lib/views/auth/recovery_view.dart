@@ -1,4 +1,3 @@
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/carps_icons.dart';
@@ -6,9 +5,8 @@ import '../../core/carps_icons.dart';
 import '../../core/theme/carps_colors.dart';
 import '../../core/widgets/carps_widgets.dart';
 import '../../controllers/app_controller.dart';
+import '../../controllers/auth_controller.dart';
 import '../../models/carps_models.dart';
-import '../../services/carps_service.dart';
-import '../../services/firebase_auth_gateway.dart';
 
 /// Figma 02 · Password Recovery. Email sending is simulated.
 class RecoveryView extends StatefulWidget {
@@ -38,31 +36,20 @@ class _RecoveryViewState extends State<RecoveryView> {
       _busy = true;
       _error = null;
     });
-    final gateway = context.appRead.authGateway;
+    final auth = context.appRead.auth;
     try {
-      if (gateway == null) {
-        await Future<void>.delayed(const Duration(milliseconds: 400));
-      } else {
-        await gateway.sendPasswordResetEmail(_email.text);
-      }
+      final sent = await auth.sendPasswordResetEmail(_email.text);
       if (!mounted) return;
       setState(() {
         _busy = false;
         _sent = true;
-        _simulated = gateway == null;
+        _simulated = !sent;
       });
     } on RuleViolation catch (error) {
       if (mounted) {
         setState(() {
           _busy = false;
           _error = error.message;
-        });
-      }
-    } on FirebaseAuthException catch (error) {
-      if (mounted) {
-        setState(() {
-          _busy = false;
-          _error = firebaseAuthErrorMessage(error);
         });
       }
     }
@@ -180,7 +167,7 @@ class _RecoveryViewState extends State<RecoveryView> {
                               prefixIcon: Icon(CarpsIcons.envelopeSimple,
                                   size: 20),
                             ),
-                            validator: (v) => CarpsService.isValidEmail(v ?? '')
+                            validator: (v) => AuthController.isValidEmail(v ?? '')
                                 ? null
                                 : 'Enter a valid email address.',
                             onFieldSubmitted: (_) => _send(),

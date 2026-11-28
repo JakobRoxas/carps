@@ -1,4 +1,3 @@
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/carps_icons.dart';
@@ -42,7 +41,7 @@ class _SettingsViewState extends State<SettingsView> {
   @override
   Widget build(BuildContext context) {
     final app = context.app;
-    final svc = app.service;
+    final svc = app.support;
     final me = app.me!;
     final c = context.carps;
     final myReports = svc.casesReportedBy(me.id);
@@ -337,11 +336,10 @@ class _SettingsViewState extends State<SettingsView> {
                         try {
                           await app.signOut();
                           if (mounted) router.go('/login');
-                        } on FirebaseAuthException catch (error) {
+                        } on RuleViolation catch (error) {
                           if (mounted) {
-                            messenger.showSnackBar(SnackBar(
-                                content: Text(error.message ??
-                                    'Could not sign out. Please try again.')));
+                            messenger.showSnackBar(
+                                SnackBar(content: Text(error.message)));
                           }
                         }
                       },

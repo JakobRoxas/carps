@@ -1,83 +1,73 @@
-import 'package:flutter/foundation.dart';
-import '../models/event_model.dart';
-import '../models/user_model.dart';
-import '../repositories/event_repository.dart';
+import '../models/carps_models.dart';
+import '../services/social_service.dart';
+import 'data_controller.dart';
 
-class FeedController extends ChangeNotifier {
-  final EventRepository _eventRepo;
-  AppUser currentUser;
+/// Controller for feed, post, comment, tag and review interactions.
+class FeedController {
+  FeedController(this._service, this._data);
 
-  List<CarpsEvent> _allEvents = [];
-  String _searchQuery = '';
-  String? _selectedTag;
-  bool isLoading = false;
+  final SocialService _service;
+  final DataController _data;
 
-  FeedController({
-    required EventRepository eventRepository,
-    required this.currentUser,
-  }) : _eventRepo = eventRepository;
+  DateTime get now => _service.now;
+  ExperiencePost? postById(String id) => _data.postById(id);
+  CarpsEvent? eventById(String id) => _data.eventById(id);
+  UserProfile? userById(String id) => _data.userById(id);
+  bool canViewPost(String? viewerId, ExperiencePost post) =>
+      _service.canViewPost(viewerId, post);
 
-  /// Personalized "For You" ranking based on followed groups, matching tags, and location.
-  List<CarpsEvent> get personalizedFeed {
-    final filtered = _allEvents.where((event) {
-      final matchesQuery = _searchQuery.isEmpty ||
-          event.title.toLowerCase().contains(_searchQuery.toLowerCase()) ||
-          event.description.toLowerCase().contains(_searchQuery.toLowerCase());
-      final matchesTag =
-          _selectedTag == null || event.tags.contains(_selectedTag);
-      return matchesQuery && matchesTag;
-    }).toList();
+  List<ExperiencePost> feed(String viewerId) => _service.feed(viewerId);
+  List<ExperiencePost> eventPosts(String? viewerId, String eventId) =>
+      _service.eventPosts(viewerId, eventId);
+  List<ExperiencePost> authoredPosts(String? viewerId, String profileId) =>
+      _service.authoredPosts(viewerId, profileId);
+  List<ExperiencePost> taggedPosts(String? viewerId, String profileId) =>
+      _service.taggedPosts(viewerId, profileId);
+  List<CarpsEvent> eligiblePostEvents(String userId) =>
+      _service.eligiblePostEvents(userId);
+  List<UserProfile> tagCandidates(String eventId, String authorId) =>
+      _service.tagCandidates(eventId, authorId);
+  String? postBlocker(String userId, CarpsEvent event) =>
+      _service.postBlocker(userId, event);
+  bool canPostAbout(String userId, CarpsEvent event) =>
+      _service.canPostAbout(userId, event);
+  String audienceLabel(CarpsEvent event) => _service.audienceLabel(event);
 
-    filtered.sort((a, b) => _scoreEvent(b).compareTo(_scoreEvent(a)));
-    return filtered;
-  }
+  ExperiencePost publishPost({
+    required String authorId,
+    required String? eventId,
+    required String body,
+    String? photoAsset,
+    List<String> taggedIds = const [],
+  }) =>
+      _service.publishPost(
+        authorId: authorId,
+        eventId: eventId,
+        body: body,
+        photoAsset: photoAsset,
+        taggedIds: taggedIds,
+      );
+  void deletePost(String actorId, String postId) =>
+      _service.deletePost(actorId, postId);
+  void removeTag(String actorId, String postId) =>
+      _service.removeTag(actorId, postId);
+  void toggleLike(String viewerId, String postId) =>
+      _service.toggleLike(viewerId, postId);
+  void addComment(String viewerId, String postId, String body,
+          {String? parentId}) =>
+      _service.addComment(viewerId, postId, body, parentId: parentId);
 
-  int _scoreEvent(CarpsEvent event) {
-    int score = 0;
-    if (currentUser.followedGroupIds.contains(event.groupId)) score += 50;
-    if (event.location.toLowerCase() == currentUser.location.toLowerCase()) {
-      score += 20;
-    }
-    final tagMatches = event.tags
-        .where((tag) => currentUser.interestTags.contains(tag))
-        .length;
-    score += tagMatches * 15;
-    return score;
-  }
-
-  /// Social proof helper: e.g., "2 people with similar interests are going"
-  String socialProofLabel(CarpsEvent event) {
-    final othersCount =
-        event.attendeeIds.where((id) => id != currentUser.id).length;
-    if (othersCount == 0) return 'Be the first to RSVP';
-    return '$othersCount ${othersCount == 1 ? 'person' : 'people'} with similar interests going';
-  }
-
-  Future<void> loadFeed() async {
-    isLoading = true;
-    notifyListeners();
-    _allEvents = await _eventRepo.fetchAllEvents();
-    isLoading = false;
-    notifyListeners();
-  }
-
-  void setSearchQuery(String query) {
-    _searchQuery = query;
-    notifyListeners();
-  }
-
-  void setTagFilter(String? tag) {
-    _selectedTag = tag;
-    notifyListeners();
-  }
-
-  Future<void> toggleRsvp(String eventId) async {
-    await _eventRepo.toggleRsvp(eventId, currentUser.id);
-    final updatedRsvps = List<String>.from(currentUser.rsvpedEventIds);
-    updatedRsvps.contains(eventId)
-        ? updatedRsvps.remove(eventId)
-        : updatedRsvps.add(eventId);
-    currentUser = currentUser.copyWith(rsvpedEventIds: updatedRsvps);
-    await loadFeed();
-  }
+  bool canReview(String userId, CarpsEvent event) =>
+      _service.canReview(userId, event);
+  List<EventReview> visibleReviews(String? viewerId, String eventId) =>
+      _service.visibleReviews(viewerId, eventId);
+  EventReview submitReview(
+          String userId, String eventId, int rating, String text) =>
+      _service.submitReview(userId, eventId, rating, text);
+  ({double? average, int count}) ratingSummary(
+          String? viewerId, String eventId) =>
+      _service.ratingSummary(viewerId, eventId);
+  ({double? average, int count}) builderRating(
+          String? viewerId, String builderId) =>
+      _service.builderRating(viewerId, builderId);
 }

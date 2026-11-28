@@ -1,194 +1,202 @@
-Carps is a cross-platform event discovery and community app for attendees,
-organizers, and community builders.
+# CARPS
 
-Firebase Authentication provides sign-in, and Cloud Firestore stores CARPS
-profiles and app data. Tests use seeded in-memory fixtures.
+CARPS is a Flutter Web event-discovery and community application for attendees,
+organizers, and community builders. The current delivery target is the web app,
+which is designed to adapt to desktop, tablet, and mobile browser sizes.
 
-This README is the team guide for building the project. Work is divided into
-three areas: **frontend**, **backend**, and **database**.
+Firebase Authentication provides sign-in, and Cloud Firestore stores profiles
+and application data. The app can use the local Firebase Emulator Suite for
+isolated development and testing.
 
-## Planned features
+## Architecture
 
-Basically right now I'm going to delimit our scope to:
+CARPS uses an MVC-inspired presentation layer supported by a service and
+repository layer:
 
-- Personalized event feed with recommendation and social-proof sections
-- Event discovery with text search and category filters
-- Event details with RSVP state and a conversation starter
-- Group hubs with follow/unfollow behavior
-- Profile, interests, and RSVP entry points
+```text
+Views
+  ↓ user actions / displayed state
+Feature Controllers + AppController
+  ↓ use-case coordination
+Focused feature services (EventService, RegistrationService, etc.)
+  ↓ shared domain operation modules
+CarpsRepository
+  ├── FirebaseCarpsRepository → Cloud Firestore
+  └── MockCarpsRepository    → in-memory test data
+```
 
-The login, sign-up, and password-reset screens use Firebase Authentication.
-Image uploads, push delivery, and analytics remain future work.
+- **Models** define the application's data structures and shared validation.
+- **Views** render screens and capture user interaction. They do not issue
+  Firestore queries or call the domain service directly.
+- **Controllers** expose feature-specific actions and read models to Views.
+  `AppController` owns shared application state and `AppScope` provides it to
+  the widget tree. `DataController` provides read-only cached data access.
+- **Services** enforce business rules. Production controllers use focused
+  feature services such as `EventService`, `RegistrationService`, and
+  `SocialService`. Their shared operation modules preserve common business
+  rules without putting every feature in one service class. `CarpsService` is
+  retained as a lazily created compatibility facade for existing domain tests;
+  the production app does not instantiate it unless a test accesses it.
+- **Repositories** define and implement persistence. The Firebase repository
+  uses Firestore; the mock repository supports deterministic tests.
 
-## Screens
+See [ARCHITECTURE.md](ARCHITECTURE.md) for the detailed folder map and feature
+flow examples, and [REFACTORING_GUIDE.md](REFACTORING_GUIDE.md) for contribution
+and local validation rules.
 
-Here are the screens we'll need to have (I think, just add more if needed sa mga in charge sa UI):
-
-- Login + Sign Up
-- Main "FYP"
-- Yung event page + the social features here:
-  - Being able to indicate interest in the event
-  - Following the group/community who made/are associated with this event
-  - Forum for the event
-- User Profile
-- Community/Group Page; kumbaga parang professional FB page
-- Settings
-
-
-## Repository layout
+## Source layout
 
 ```text
 lib/
-  main.dart                         App entry point and app-wide setup
-  models/                           Shared domain models and value objects
-  controllers/                      UI-facing state and user actions
-  repositories/                     Data access interfaces and implementations
-  views/                            Screens and widgets
+  main.dart
+  router.dart
+  controllers/
+    app_controller.dart
+    auth_controller.dart
+    data_controller.dart
+    event_controller.dart
+    feed_controller.dart
+    notification_controller.dart
+    profile_controller.dart
+    registration_controller.dart
+    support_controller.dart
+  models/
+    carps_models.dart          Public model barrel
+    carps_enums.dart
+    user_profile.dart
+    event_models.dart
+    registration_models.dart
+    social_models.dart
+    notification_model.dart
+    support_model.dart
+    history_models.dart
+    scan_result.dart
+    carps_validation.dart
+  repositories/
+    carps_repository.dart
+    firebase_carps_repository.dart
+    mock_carps_repository.dart
+    carps_firestore_codec.dart
+  services/
+    carps_service.dart         Compatibility facade for domain tests
+    carps_domain_operations.dart Shared base and operation mixins
+    carps_service_base.dart
+    event_service.dart
+    registration_service.dart
+    social_service.dart
+    profile_service.dart
+    notification_service.dart
+    account_service.dart
+    support_service.dart
+    event_query_operations.dart
+    event_management_operations.dart
+    registration_operations.dart
+    social_operations.dart
+    profile_operations.dart
+    notification_operations.dart
+    account_operations.dart
+    support_operations.dart
+    firebase_auth_gateway.dart
+  views/
+    auth/ events/ feed/ home/ notifications/
+    onboarding/ profile/ settings/ shell/ demo/
+  core/
+    theme/ widgets/ shared utilities
+  firebase/
+    firebase_runtime.dart
 ```
 
-Platform folders (`android/`, `ios/`, and `web/`) contain Flutter platform
-configuration. Avoid changing them unless the feature needs platform-specific
-behavior.
+## Requirements
 
-## Team responsibilities
+Install the Flutter SDK compatible with the Dart constraint in `pubspec.yaml`,
+then verify it is available:
 
-### Frontend team
+```bash
+flutter --version
+dart --version
+```
 
-User experience and Flutter presentation layer.
+## Run the web app
 
-**Primary responsibilities**
+Install packages:
 
-- Build screens, widgets, navigation, loading states, empty states, and errors.
-- Keep UI state in controllers and presentation logic out of repositories.
-- Use the shared models in `lib/models/`.
-- Call repositories through controllers instead of embedding data access in
-  widgets.
-- Add responsive behavior for mobile and web.
-- Add or update widget tests for user-visible behavior.
+```bash
+flutter pub get
+```
 
-### Backend
+Run against the configured Firebase project:
 
-The app uses Firebase Authentication and direct Cloud Firestore access. The
-Flutter repository caches accessible records for the existing synchronous
-business-rule service, then writes changes to Firestore. Firestore Security
-Rules restrict reads and writes by account, event team, and attendance.
+```bash
+flutter run -d chrome
+```
 
-Direct Firestore avoids Cloud Functions and a Blaze upgrade, but it does not
-provide a trusted server for every workflow. Critical changes must be
-constrained by Firestore Rules, and backend-only services such as push delivery
-are not included.
+The checked-in `lib/firebase_options.dart` currently contains Web Firebase
+options. Native Android/iOS Firebase configuration is outside the current
+web-only delivery scope and must be completed before running those native
+platforms.
 
-### Database
+## Use local Firebase emulators
 
-- Design tables/collections for users, events, groups, RSVPs, follows, and
-  other agreed features.
-- Define relationships, constraints, indexes, and retention requirements.
-- Create versioned migrations and a way to roll them back when practical.
-- Provide seed data for local development and test fixtures for automated tests.
-- Protect sensitive data and document access rules.
-- Review backend queries for correctness and performance.
+Start Authentication and Firestore emulators in one terminal:
 
-**Database rules**
+```bash
+npx firebase-tools emulators:start --project carps-d19cf --only auth,firestore
+```
 
-- Every schema change must have a migration; do not edit production data
-  manually.
-- Use stable identifiers and explicit timestamps.
-- Add constraints for invariants that must always hold.
-- Keep secrets and connection strings out of the repository.
-- Coordinate breaking schema changes with a backend migration plan.
+Run the web app in a second terminal:
 
-## Workflow
+```bash
+flutter run -d chrome --dart-define=USE_FIREBASE_EMULATORS=true
+```
 
-- Maglagay lang kayo ng commit msg haha
+For the web target, the browser connects to the emulator ports on the same
+computer: Authentication `localhost:9099` and Firestore `localhost:8080`.
+Emulator accounts and data are local and separate from production data.
 
-## Firebase setup
+## Firebase setup notes
 
-The app is configured for the Firebase project `carps-d19cf` (Web). Before
-running it:
-
-1. In Firebase Console, open **Build → Firestore Database → Create database**.
-   Choose Production mode and select the database location carefully; the
-   location cannot be changed later.
-2. In **Authentication → Sign-in method**, enable the providers you want to
-   offer (Email/Password and Google).
-3. Install/use the Firebase CLI, sign in, and deploy the checked-in rules:
+1. In Firebase Console, verify that the CARPS Web app is registered in project
+   `carps-d19cf`.
+2. In **Authentication → Sign-in method**, enable the providers used by the
+   app (Email/Password and, if configured, Google).
+3. Verify that Cloud Firestore is created in the intended region.
+4. Review `firestore.rules` before deploying security-rule changes.
+5. Deploy rules only after reviewing them with the team:
 
    ```bash
    npx firebase-tools login
    npx firebase-tools deploy --project carps-d19cf --only firestore:rules
    ```
 
-The app supports email/password sign-up, login, Google sign-in, password reset,
-and sign-out. Firebase options are currently configured for Web; run
-FlutterFire configuration before using Android or iOS.
+Firestore collections and documents are created as the app writes them; there
+are no SQL tables to create manually. Email/password credentials are managed by
+Firebase Authentication rather than stored as profile-document passwords.
+
+Cloud Functions are not part of the current configured deployment. Push
+delivery, image uploads, and production analytics remain out of scope unless
+the team explicitly implements and verifies them.
+
+## Quality checks
+
+Run these from the project root before opening a pull request:
 
 ```bash
-flutter run -d chrome
+dart format .
+flutter analyze
+flutter test
+flutter build web
 ```
 
-Firestore creates collections and documents as the app writes them; there are
-no SQL tables to create manually. Profiles and username reservations live in
-`profiles` and `usernames`; events, invitations, event access, registrations,
-registration notes, passes, attendance, posts, reviews, notifications, and
-support cases are stored in their corresponding collections. Registration notes
-are private to the attendee and event team. Email addresses are kept in Firebase
-Authentication, not in public profile documents.
-
-Existing Firebase Auth accounts without a `profiles/{uid}` document will need
-to complete CARPS onboarding once. After the profile is saved, onboarding
-progress persists across sign-ins.
-
-Cloud Firestore has a free quota, but usage beyond the free limits may incur
-charges. Cloud Functions are not deployed or required by this setup.
-
-### Test with local Firebase emulators
-
-This keeps test sign-ins and Firestore writes off the live project. Start the
-Auth and Firestore emulators in one terminal:
-
-```bash
-npx firebase-tools emulators:start --project carps-d19cf --only auth,firestore
-```
-
-In another terminal, run the web app with emulator mode enabled:
-
-```bash
-flutter run -d web-server --web-hostname localhost --web-port 5000 --dart-define=USE_FIREBASE_EMULATORS=true
-```
-
-Open `http://localhost:5000` and use a test account. Emulator data is local and
-is discarded when the emulators stop. Normal app runs continue using live
-Firebase; emulator mode is opt-in.
-
-To run Firestore rule tests against a local emulator:
+Run Firestore Security Rules tests against the local emulator:
 
 ```bash
 npx firebase-tools emulators:exec --project carps-d19cf --only firestore "npm test --prefix test/firestore_rules"
 ```
 
-## Local development
+## Team workflow
 
-Install dependencies and run the Flutter app:
-
-```bash
-flutter pub get
-flutter run
-```
-
-Run the test suite:
-
-```bash
-flutter test
-```
-
-Check formatting and static analysis before opening a pull request:
-
-```bash
-dart format .
-flutter analyze
-```
-
-The app should remain runnable with mock data while backend work is in progress.
-Do not commit service-account files, passwords, or machine-specific
-configuration. Public Firebase client settings are not secrets; authorization
-must come from Authentication and server-side validation.
+1. Create a feature or cleanup branch from the latest `main`.
+2. Make one focused change at a time.
+3. Run formatting, analysis, relevant tests, and the web build.
+4. Review the diff and open a pull request.
+5. Do not merge untested changes into `main`.

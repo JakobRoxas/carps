@@ -121,7 +121,7 @@ class _BuilderSetupViewState extends State<BuilderSetupView> {
     void enableHosting() {
       if (runAction(
         context,
-        () => app.service.enableHosting(
+        () => app.profiles.enableHosting(
           me.id,
           builderName: _name.text,
           about: _about.text,

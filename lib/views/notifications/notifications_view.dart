@@ -23,20 +23,20 @@ class _NotificationsViewState extends State<NotificationsView> {
   void initState() {
     super.initState();
     final app = context.appRead;
-    _unreadOnOpen = app.service
+    _unreadOnOpen = app.notifications
         .notificationsFor(app.me!.id)
         .where((n) => !n.read)
         .map((n) => n.id)
         .toSet();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) app.service.markAllRead(app.me!.id);
+      if (mounted) app.notifications.markAllRead(app.me!.id);
     });
   }
 
   @override
   Widget build(BuildContext context) {
     final app = context.app;
-    final list = app.service.notificationsFor(app.me!.id);
+    final list = app.notifications.notificationsFor(app.me!.id);
     final c = context.carps;
     return CarpsPage(
       title: 'Notifications',
@@ -69,7 +69,7 @@ class _NotificationsViewState extends State<NotificationsView> {
                         Text(n.body, style: const TextStyle(fontSize: 13)),
                         const SizedBox(height: 4),
                         Row(children: [
-                          Text(relative(n.createdAt, app.service.now),
+                          Text(relative(n.createdAt, app.notifications.now),
                               style: Theme.of(context).textTheme.bodySmall),
                           if (n.emailSimulated) ...[
                             const SizedBox(width: 8),

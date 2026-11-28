@@ -19,16 +19,16 @@ class PostCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final app = context.app;
-    final svc = app.service;
+    final svc = app.feed;
     final me = app.me;
     final c = context.carps;
-    final author = svc.repo.user(post.authorId);
-    final event = svc.repo.event(post.eventId);
+    final author = app.data.userById(post.authorId);
+    final event = app.data.eventById(post.eventId);
     if (event == null || !svc.canViewPost(me?.id, post)) {
       return const SizedBox.shrink();
     }
     final tagged =
-        post.taggedIds.map(svc.repo.user).whereType<UserProfile>().toList();
+        post.taggedIds.map(app.data.userById).whereType<UserProfile>().toList();
     final liked = me != null && post.likedByIds.contains(me.id);
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
@@ -198,14 +198,14 @@ class _PostMenu extends StatelessWidget {
               confirmLabel: 'Delete',
               destructive: true);
           if (ok && context.mounted) {
-            runAction(context, () => app.service.deletePost(me.id, post.id),
+            runAction(context, () => app.feed.deletePost(me.id, post.id),
                 success: 'Post deleted everywhere');
             if (GoRouterState.of(context).uri.path.startsWith('/post/')) {
               context.pop();
             }
           }
         } else if (v == 'untag') {
-          runAction(context, () => app.service.removeTag(me.id, post.id),
+          runAction(context, () => app.feed.removeTag(me.id, post.id),
               success: 'Tag removed. The post stays on the author\'s profile.');
         }
       },

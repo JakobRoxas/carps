@@ -14,11 +14,11 @@ class FollowedView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final app = context.app;
-    final svc = app.service;
+    final svc = app.profiles;
     final me = app.me!;
     final c = context.carps;
     final builders = me.followingIds
-        .map(svc.repo.user)
+        .map(app.data.userById)
         .whereType<UserProfile>()
         .where((u) => u.hostingEnabled)
         .toList();

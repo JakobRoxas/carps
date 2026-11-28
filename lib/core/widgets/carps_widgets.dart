@@ -819,7 +819,7 @@ class CarpsTopBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final app = context.app;
     final me = app.me;
-    final unread = me == null ? 0 : app.service.unreadCount(me.id);
+    final unread = me == null ? 0 : app.notifications.unreadCount(me.id);
     final c = context.carps;
     return Container(
       height: 64,

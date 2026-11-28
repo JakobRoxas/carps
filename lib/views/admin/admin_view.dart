@@ -25,7 +25,7 @@ class AdminView extends StatelessWidget {
                 'Admin is an assigned permission, never something you choose at sign-up.'),
       ]);
     }
-    final cases = app.service.casesFor(me.id);
+    final cases = app.support.casesFor(me.id);
     final open = cases.where((c) => c.status == CaseStatus.open).toList();
     final closed = cases.where((c) => c.status == CaseStatus.closed).toList();
     return CarpsPage(
@@ -71,13 +71,13 @@ class _CaseCardState extends State<_CaseCard> {
   @override
   Widget build(BuildContext context) {
     final app = context.app;
-    final svc = app.service;
+    final svc = app.support;
     final c = context.carps;
     final sc = widget.supportCase;
-    final reporter = svc.repo.user(sc.reporterId);
+    final reporter = app.data.userById(sc.reporterId);
     final link = svc.parseLink(sc.link);
-    final event = link.eventId == null ? null : svc.repo.event(link.eventId!);
-    final post = link.postId == null ? null : svc.repo.post(link.postId!);
+    final event = link.eventId == null ? null : app.data.eventById(link.eventId!);
+    final post = link.postId == null ? null : app.data.postById(link.postId!);
     final reg = event == null ? null : svc.registrationFor(event.id, sc.reporterId);
     final att = event == null ? null : svc.attendanceFor(event.id, sc.reporterId);
     final closed = sc.status == CaseStatus.closed;
@@ -133,7 +133,7 @@ class _CaseCardState extends State<_CaseCard> {
                     Text('${event.title} · ${shortDate(event.start)}',
                         style: const TextStyle(fontWeight: FontWeight.w600)),
                     Text(
-                        'Host: ${svc.repo.user(event.hostId)?.displayName} · ${event.isPrivate ? 'Private' : 'Public'}',
+                        'Host: ${app.data.userById(event.hostId)?.displayName} · ${event.isPrivate ? 'Private' : 'Public'}',
                         style: Theme.of(context).textTheme.bodySmall),
                     const SizedBox(height: 4),
                     Text(
@@ -145,7 +145,7 @@ class _CaseCardState extends State<_CaseCard> {
                   ],
                   if (post != null)
                     Text(
-                        'Post by ${svc.repo.user(post.authorId)?.displayName}: “${post.body}”'),
+                        'Post by ${app.data.userById(post.authorId)?.displayName}: “${post.body}”'),
                   if (link.postId != null && post == null)
                     const Text('Linked post no longer exists.'),
                 ],
@@ -186,7 +186,7 @@ class _CaseCardState extends State<_CaseCard> {
                   value: _hostConfirmed,
                   onChanged: (v) => setState(() => _hostConfirmed = v ?? false),
                   title: Text(
-                      'I confirmed the arrival with the host (${event == null ? '' : svc.repo.user(event.hostId)?.displayName})'),
+                      'I confirmed the arrival with the host (${event == null ? '' : app.data.userById(event.hostId)?.displayName})'),
                 ),
               TextField(
                 controller: _note,

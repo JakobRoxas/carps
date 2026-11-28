@@ -1,8 +1,8 @@
 import 'package:firebase_auth/firebase_auth.dart';
 
 import '../models/carps_models.dart';
+import '../models/carps_validation.dart';
 import '../repositories/firebase_carps_repository.dart';
-import 'carps_service.dart';
 
 class FirebaseAuthGateway {
   FirebaseAuthGateway({required this.auth, required this.repository});
@@ -20,7 +20,7 @@ class FirebaseAuthGateway {
   }
 
   Future<UserProfile> signUpWithEmail(String email, String password) async {
-    if (!CarpsService.isValidEmail(email)) {
+    if (!CarpsValidation.isValidEmail(email)) {
       throw const RuleViolation('Enter a valid email.');
     }
     if (password.length < 8) {
@@ -45,7 +45,7 @@ class FirebaseAuthGateway {
   }
 
   Future<void> sendPasswordResetEmail(String email) async {
-    if (!CarpsService.isValidEmail(email)) {
+    if (!CarpsValidation.isValidEmail(email)) {
       throw const RuleViolation('Enter a valid email address.');
     }
     await auth.sendPasswordResetEmail(email: email.trim());

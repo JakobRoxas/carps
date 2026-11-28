@@ -3,12 +3,12 @@ import 'package:go_router/go_router.dart';
 import '../../core/carps_icons.dart';
 
 import '../../controllers/app_controller.dart';
+import '../../controllers/registration_controller.dart';
 import '../../core/format.dart';
 import '../../core/theme/carps_colors.dart';
 import '../../core/widgets/carps_widgets.dart';
 import '../../models/carps_models.dart';
 import '../../repositories/mock_carps_repository.dart';
-import '../../services/carps_service.dart';
 
 /// Floating "DEMO" tab. Everything in this panel is a testing aid, not part
 /// of the product, and every control calls the same service methods (and
@@ -88,15 +88,16 @@ class _DemoPanelState extends State<DemoPanel> {
   @override
   Widget build(BuildContext context) {
     final app = context.app;
-    final svc = app.service;
+    final eventController = app.events;
+    final registrationController = app.registrations;
     final c = context.carps;
-    final events = svc.repo.events.toList()
+    final events = app.data.events.toList()
       ..sort((a, b) => a.start.compareTo(b.start));
-    final openEvents = events.where((e) => !e.isEnded(svc.now)).toList();
+    final openEvents = events.where((e) => !e.isEnded(eventController.now)).toList();
     // The selected event may have just been ended from this panel.
     if (!openEvents.any((e) => e.id == _scanEventId)) _scanEventId = null;
     _scanEventId ??= openEvents
-        .where(svc.scannerOpen)
+        .where(registrationController.scannerOpen)
         .map((e) => e.id)
         .firstOrNull;
 
@@ -123,7 +124,7 @@ class _DemoPanelState extends State<DemoPanel> {
           const CaptionLabel('1 · Switch user'),
           const SizedBox(height: 8),
           for (final id in _roles.keys)
-            if (svc.repo.user(id) case final u?)
+            if (app.data.userById(id) case final u?)
               ListTile(
                 contentPadding: EdgeInsets.zero,
                 leading: CarpsAvatar(user: u, size: 36),
@@ -151,7 +152,7 @@ class _DemoPanelState extends State<DemoPanel> {
                 DropdownMenuItem(
                   value: e.id,
                   child: Text(
-                      '${e.title} · ${shortDate(e.start)}${svc.scannerOpen(e) ? '' : ' (scanner closed)'}',
+                      '${e.title} · ${shortDate(e.start)}${registrationController.scannerOpen(e) ? '' : ' (scanner closed)'}',
                       overflow: TextOverflow.ellipsis),
                 ),
             ],
@@ -165,17 +166,19 @@ class _DemoPanelState extends State<DemoPanel> {
               spacing: 8,
               runSpacing: 8,
               children: [
-                for (final p in svc.repo.passes.where(
-                    (p) => !svc.requireEvent(p.eventId).isEnded(svc.now)))
+                for (final p in app.data.passes.where((p) {
+                  final passEvent = app.data.eventById(p.eventId);
+                  return passEvent != null && !passEvent.isEnded(eventController.now);
+                }))
                   ActionChip(
                     label: Text(
-                        '${svc.repo.user(p.userId)?.displayName} · ${p.eventId == _scanEventId ? 'this event' : 'other event'}${p.revoked ? ' (revoked)' : ''}'),
-                    onPressed: () => _scan(svc, p.token),
+                        '${app.data.userById(p.userId)?.displayName} · ${p.eventId == _scanEventId ? 'this event' : 'other event'}${p.revoked ? ' (revoked)' : ''}'),
+                    onPressed: () => _scan(registrationController, eventController.eventById(_scanEventId!)!, p.token),
                   ),
                 ActionChip(
                   avatar: const Icon(CarpsIcons.question, size: 16),
                   label: const Text('Unknown code'),
-                  onPressed: () => _scan(svc, 'CARP-UNKNOWN-0000'),
+                  onPressed: () => _scan(registrationController, eventController.eventById(_scanEventId!)!, 'CARP-UNKNOWN-0000'),
                 ),
               ],
             ),
@@ -200,10 +203,10 @@ class _DemoPanelState extends State<DemoPanel> {
               contentPadding: EdgeInsets.zero,
               title: Text(e.title),
               subtitle: Text(
-                  '${dateTime(e.start)}${e.isPrivate ? ' · Private' : ''} · ${svc.attendanceForEvent(e.id).length} checked in'),
+                  '${dateTime(e.start)}${e.isPrivate ? ' · Private' : ''} · ${registrationController.attendanceForEvent(e.id).length} checked in'),
               trailing: TextButton(
                 onPressed: () {
-                  svc.endEventNow(e.id);
+                  registrationController.endEventNow(e.id);
                   showCarpsSnack(context, '${e.title} has ended');
                   setState(() {});
                 },
@@ -236,9 +239,8 @@ class _DemoPanelState extends State<DemoPanel> {
     );
   }
 
-  void _scan(CarpsService svc, String token) {
-    final event = svc.requireEvent(_scanEventId!);
-    final r = svc.scan(event.hostId, event.id, token);
+  void _scan(RegistrationController controller, CarpsEvent event, String token) {
+    final r = controller.scan(event.hostId, event.id, token);
     setState(() => _lastResult = describeScan(r));
   }
 }

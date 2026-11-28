@@ -21,9 +21,9 @@ class _AnalyticsViewState extends State<AnalyticsView> {
   @override
   Widget build(BuildContext context) {
     final app = context.app;
-    final svc = app.service;
+    final svc = app.events;
     final me = app.me!;
-    final event = svc.repo.event(_eventId);
+    final event = app.data.eventById(_eventId);
     if (event == null || !event.isHostingTeam(me.id)) {
       return const CarpsPage(title: 'Host analytics', children: [
         EmptyState(

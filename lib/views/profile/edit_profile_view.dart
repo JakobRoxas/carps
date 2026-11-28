@@ -52,7 +52,7 @@ class _EditProfileViewState extends State<EditProfileView> {
       return;
     }
     final app = context.appRead;
-    app.service.updateUser(app.me!.copyWith(
+    app.profiles.updateUser(app.me!.copyWith(
       displayName: _name.text.trim(),
       username: _username.text.trim().replaceFirst('@', ''),
       bio: _bio.text.trim(),
@@ -67,7 +67,7 @@ class _EditProfileViewState extends State<EditProfileView> {
   Widget build(BuildContext context) {
     final app = context.app;
     final me = app.me!;
-    final svc = app.service;
+    final svc = app.profiles;
     final c = context.carps;
     final usernameProblem = svc.usernameProblem(_username.text, ownerId: me.id);
     return Form(

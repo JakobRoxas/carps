@@ -16,7 +16,7 @@ class FeedView extends StatelessWidget {
   Widget build(BuildContext context) {
     final app = context.app;
     final me = app.me!;
-    final posts = app.service.feed(me.id);
+    final posts = app.feed.feed(me.id);
     final c = context.carps;
     return Column(children: [
       const CarpsTopBar(),

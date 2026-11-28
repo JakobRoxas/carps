@@ -69,7 +69,7 @@ class EventPhotoCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final app = context.app;
-    final svc = app.service;
+    final svc = app.events;
     final me = app.me;
     final going = svc.goingCount(event.id);
     final proof = me == null ? null : svc.socialProof(me.id, event);

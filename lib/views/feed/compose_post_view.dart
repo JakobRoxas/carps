@@ -37,7 +37,7 @@ class _ComposePostViewState extends State<ComposePostView> {
 
   void _load() {
     final app = context.appRead;
-    _eligible = app.lookup(() => app.service.eligiblePostEvents(app.me!.id));
+    _eligible = app.lookup(() => app.feed.eligiblePostEvents(app.me!.id));
     _eligible.then((list) {
       if (!mounted) return;
       if (_eventId == null &&
@@ -61,7 +61,7 @@ class _ComposePostViewState extends State<ComposePostView> {
     final app = context.appRead;
     var postId = '';
     final ok = runAction(context, () {
-      postId = app.service
+      postId = app.feed
           .publishPost(
             authorId: app.me!.id,
             eventId: _eventId,
@@ -117,13 +117,13 @@ class _ComposePostViewState extends State<ComposePostView> {
   @override
   Widget build(BuildContext context) {
     final app = context.app;
-    final svc = app.service;
+    final svc = app.feed;
     final me = app.me!;
     final c = context.carps;
-    final event = _eventId == null ? null : svc.repo.event(_eventId!);
+    final event = _eventId == null ? null : app.data.eventById(_eventId!);
     final initialBlocked = widget.initialEventId != null &&
-            svc.repo.event(widget.initialEventId!) != null
-        ? svc.postBlocker(me.id, svc.repo.event(widget.initialEventId!)!)
+            app.data.eventById(widget.initialEventId!) != null
+        ? svc.postBlocker(me.id, app.data.eventById(widget.initialEventId!)!)
         : null;
 
     return Scaffold(
@@ -275,7 +275,7 @@ class _ComposePostViewState extends State<ComposePostView> {
   }
 
   List<Widget> _composer(BuildContext context, CarpsEvent event) {
-    final svc = context.app.service;
+    final svc = context.app.feed;
     final me = context.app.me!;
     final c = context.carps;
     final candidates = svc.tagCandidates(event.id, me.id);

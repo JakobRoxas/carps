@@ -28,9 +28,9 @@ class _ReviewsViewState extends State<ReviewsView> {
   @override
   Widget build(BuildContext context) {
     final app = context.app;
-    final svc = app.service;
+    final svc = app.events;
     final me = app.me!;
-    final event = svc.repo.event(widget.eventId);
+    final event = app.data.eventById(widget.eventId);
     if (event == null || !svc.canViewPrivateSocial(me.id, event)) {
       return const CarpsPage(title: 'Event reviews', children: [
         EmptyState(
@@ -41,7 +41,7 @@ class _ReviewsViewState extends State<ReviewsView> {
     }
     final summary = svc.ratingSummary(me.id, event.id);
     final reviews = svc.visibleReviews(me.id, event.id);
-    final host = svc.repo.user(event.hostId);
+    final host = app.data.userById(event.hostId);
     final canReview = svc.canReview(me.id, event);
     final blocker = svc.postBlocker(me.id, event);
     final c = context.carps;

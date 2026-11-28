@@ -1,6 +1,5 @@
 import 'dart:math' as math;
 
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
@@ -8,11 +7,10 @@ import 'package:go_router/go_router.dart';
 import '../../core/carps_icons.dart';
 
 import '../../controllers/app_controller.dart';
+import '../../controllers/auth_controller.dart';
 import '../../core/theme/carps_colors.dart';
 import '../../core/widgets/carps_widgets.dart';
 import '../../models/carps_models.dart';
-import '../../services/carps_service.dart';
-import '../../services/firebase_auth_gateway.dart';
 
 /// Spin the ring once on entry; the wordmark and form stay still.
 class _LoginLogo extends StatelessWidget {
@@ -69,31 +67,14 @@ class _LoginViewState extends State<LoginView> {
     if (!_form.currentState!.validate()) return;
     setState(() => _busy = true);
     final app = context.appRead;
-    if (app.authGateway == null) {
-      await Future<void>.delayed(const Duration(milliseconds: 300));
-    }
     if (!mounted) return;
     try {
-      final user = app.authGateway != null
-          ? (_signUp
-                ? await app.authGateway!.signUpWithEmail(
-                    _email.text,
-                    _password.text,
-                  )
-                : await app.authGateway!.signInWithEmail(
-                    _email.text,
-                    _password.text,
-                  ))
-          : (_signUp
-                ? app.service.signUp(_email.text, _password.text)
-                : app.service.logIn(_email.text, _password.text));
+      final user = _signUp
+          ? await app.auth.signUp(_email.text, _password.text)
+          : await app.auth.signIn(_email.text, _password.text);
       app.signIn(user.id); // router redirects to onboarding or Home
     } on RuleViolation catch (e) {
       setState(() => _error = e.message);
-    } on FirebaseAuthException catch (e) {
-      setState(() => _error = firebaseAuthErrorMessage(e));
-    } on FirebaseException catch (e) {
-      setState(() => _error = e.message ?? 'Could not load your CARPS data.');
     } on StateError catch (e) {
       setState(() => _error = e.message);
     } finally {
@@ -103,25 +84,17 @@ class _LoginViewState extends State<LoginView> {
 
   Future<void> _google() async {
     final app = context.appRead;
-    if (app.authGateway case final gateway?) {
+    if (app.auth.firebaseEnabled) {
       setState(() {
         _error = null;
         _busy = true;
       });
       try {
-        final user = await gateway.signInWithGoogle();
+        final user = await app.auth.signInWithGoogle();
         app.signIn(user.id);
-      } on FirebaseAuthException catch (e) {
-        if (mounted) setState(() => _error = firebaseAuthErrorMessage(e));
-      } on FirebaseException catch (e) {
-        if (mounted) {
-          setState(
-            () => _error = e.message ?? 'Could not load your CARPS data.',
-          );
-        }
-      } on RuleViolation catch (e) {
-        if (mounted) setState(() => _error = e.message);
       } on StateError catch (e) {
+        if (mounted) setState(() => _error = e.message);
+      } on RuleViolation catch (e) {
         if (mounted) setState(() => _error = e.message);
       } finally {
         if (mounted) setState(() => _busy = false);
@@ -130,12 +103,12 @@ class _LoginViewState extends State<LoginView> {
     }
     final picked = await showModalBottomSheet<String>(
       context: context,
-      builder: (ctx) => _GoogleChooser(users: app.repo.users),
+      builder: (ctx) => _GoogleChooser(users: app.data.users),
     );
     if (picked == null || !mounted) return;
     if (picked == '__new__') {
-      final user = app.service.signUp(
-        'newmember${app.repo.users.length}@gmail.com',
+      final user = await app.auth.signUp(
+        'newmember${app.data.users.length}@gmail.com',
         'carps-google-sim',
       );
       app.signIn(user.id);
@@ -250,7 +223,7 @@ class _LoginViewState extends State<LoginView> {
                                     ),
                                   ),
                                   const SizedBox(width: 8),
-                                  if (app.authGateway == null)
+                                  if (!app.auth.firebaseEnabled)
                                     const SimulatedTag(),
                                 ],
                               ),
@@ -292,7 +265,7 @@ class _LoginViewState extends State<LoginView> {
                               size: 20,
                             ),
                           ),
-                          validator: (v) => CarpsService.isValidEmail(v ?? '')
+                          validator: (v) => AuthController.isValidEmail(v ?? '')
                               ? null
                               : 'Enter a valid email address.',
                         ),

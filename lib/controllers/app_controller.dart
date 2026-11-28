@@ -1,8 +1,24 @@
 import 'package:flutter/widgets.dart';
 
 import '../models/carps_models.dart';
+import 'auth_controller.dart';
+import 'data_controller.dart';
+import 'event_controller.dart';
+import 'feed_controller.dart';
+import 'notification_controller.dart';
+import 'profile_controller.dart';
+import 'registration_controller.dart';
+import 'support_controller.dart';
 import '../repositories/carps_repository.dart';
 import '../services/carps_service.dart';
+import '../services/carps_domain_operations.dart' show Clock;
+import '../services/event_service.dart';
+import '../services/registration_service.dart';
+import '../services/social_service.dart';
+import '../services/profile_service.dart';
+import '../services/notification_service.dart';
+import '../services/account_service.dart';
+import '../services/support_service.dart';
 import '../services/firebase_auth_gateway.dart';
 
 /// UI-facing application state: who is signed in, plus demo switches.
@@ -11,21 +27,61 @@ import '../services/firebase_auth_gateway.dart';
 /// shared state (registrations, passes, posts…) changes.
 class AppController extends ChangeNotifier {
   AppController(this.repo,
-      {Clock? clock, this.authGateway, String? initialUserId})
-      : service = CarpsService(repo, clock: clock),
+      {Clock? clock, FirebaseAuthGateway? authGateway, String? initialUserId})
+      : _clock = clock ?? DateTime.now,
         _currentUserId = initialUserId {
+    data = DataController(repo);
+
+    // Each feature gets a focused domain service backed by the same repository
+    // and clock. This keeps the controllers independent of the aggregate test
+    // facade and prevents Views from reaching into unrelated feature logic.
+    final eventService = EventService(repo, clock: _clock);
+    final registrationService = RegistrationService(repo, clock: _clock);
+    final socialService = SocialService(repo, clock: _clock);
+    final profileService = ProfileService(repo, clock: _clock);
+    final notificationService = NotificationService(repo, clock: _clock);
+    final accountService = AccountService(repo, clock: _clock);
+    final supportService = SupportService(repo, clock: _clock);
+
+    events = EventController(
+      eventService,
+      registrationService,
+      socialService,
+      data,
+    );
+    registrations = RegistrationController(registrationService);
+    feed = FeedController(socialService, data);
+    profiles = ProfileController(profileService, data);
+    notifications = NotificationController(notificationService);
+    support = SupportController(supportService, data);
+    auth = AuthController(service: accountService, gateway: authGateway);
     repo.addListener(notifyListeners);
   }
 
   final CarpsRepository repo;
-  final CarpsService service;
-  final FirebaseAuthGateway? authGateway;
+  final Clock _clock;
+  late final DataController data;
+
+  /// Lazily-created aggregate facade for existing domain tests only.
+  /// Production controllers use the focused services constructed above.
+  late final CarpsService service = CarpsService(repo, clock: _clock);
+  /// Feature controllers are the UI-facing API. Views should depend on these
+  /// controllers rather than calling domain services or repositories.
+  late final EventController events;
+  late final RegistrationController registrations;
+  late final FeedController feed;
+  late final ProfileController profiles;
+  late final NotificationController notifications;
+  late final SupportController support;
+  late final AuthController auth;
 
   String? _currentUserId;
   String? get currentUserId => _currentUserId;
   UserProfile? get me =>
-      _currentUserId == null ? null : repo.user(_currentUserId!);
+      _currentUserId == null ? null : data.userById(_currentUserId!);
   bool get signedIn => me != null;
+
+  String? get persistenceError => repo.persistenceError;
 
   /// Demo switch: makes "lookup" calls (attendance history, event picker)
   /// fail so the failure state can be reviewed. Never changes the rules.
@@ -42,7 +98,7 @@ class AppController extends ChangeNotifier {
   }
 
   Future<void> signOut() async {
-    await authGateway?.signOut();
+    await auth.signOut();
     _currentUserId = null;
     notifyListeners();
   }
@@ -79,5 +135,4 @@ class AppScope extends InheritedNotifier<AppController> {
 extension AppScopeX on BuildContext {
   AppController get app => AppScope.watch(this);
   AppController get appRead => AppScope.read(this);
-  CarpsService get svc => AppScope.read(this).service;
 }

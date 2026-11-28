@@ -4,8 +4,9 @@ import '../models/carps_models.dart';
 
 /// Storage boundary for CARPS.
 ///
-/// Widgets never talk to this directly: they go through `CarpsService`, which
-/// enforces the product rules. Implementations keep a local cache for the
+/// Views read through DataController and invoke feature Controllers. The
+/// Controllers coordinate use cases with domain services, which enforce
+/// product rules before writes reach this repository. Implementations keep a local cache for the
 /// synchronous reads below and persist writes to their backing store.
 ///
 /// The repository notifies listeners after every write so the UI rebuilds.

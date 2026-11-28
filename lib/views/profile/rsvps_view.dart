@@ -30,21 +30,21 @@ class _RsvpsViewState extends State<RsvpsView> {
   @override
   Widget build(BuildContext context) {
     final app = context.app;
-    final svc = app.service;
+    final svc = app.registrations;
     final me = app.me!;
     final c = context.carps;
     final now = svc.now;
 
     final items = <_Item>[];
-    for (final r in svc.repo.registrations.where((r) => r.userId == me.id)) {
-      final e = svc.repo.event(r.eventId);
+    for (final r in app.data.registrations.where((r) => r.userId == me.id)) {
+      final e = app.data.eventById(r.eventId);
       if (e == null || e.isEnded(now)) continue;
       items.add(_Item(e, r));
     }
-    for (final i in svc.repo.invitations.where(
+    for (final i in app.data.invitations.where(
       (i) => i.inviteeId == me.id && i.kind == InvitationKind.guest,
     )) {
-      final e = svc.repo.event(i.eventId);
+      final e = app.data.eventById(i.eventId);
       if (e == null || e.isEnded(now) || items.any((x) => x.event.id == e.id)) {
         continue;
       }

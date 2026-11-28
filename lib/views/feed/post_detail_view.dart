@@ -30,9 +30,9 @@ class _PostDetailViewState extends State<PostDetailView> {
   @override
   Widget build(BuildContext context) {
     final app = context.app;
-    final svc = app.service;
+    final svc = app.feed;
     final me = app.me!;
-    final post = svc.repo.post(widget.postId);
+    final post = app.data.postById(widget.postId);
     final c = context.carps;
     if (post == null || !svc.canViewPost(me.id, post)) {
       // Same message whether it was deleted or is private: no leak.
@@ -49,7 +49,7 @@ class _PostDetailViewState extends State<PostDetailView> {
         post.comments.where((x) => x.parentId == id).toList();
 
     Widget commentTile(PostComment cm, {bool reply = false}) {
-      final author = svc.repo.user(cm.authorId);
+      final author = app.data.userById(cm.authorId);
       return Padding(
         padding: EdgeInsets.only(left: reply ? 44 : 0, bottom: 10),
         child: Row(
@@ -101,7 +101,7 @@ class _PostDetailViewState extends State<PostDetailView> {
         if (replyingTo != null)
           Row(children: [
             Text(
-                'Replying to ${svc.repo.user(replyingTo.authorId)?.displayName}',
+                'Replying to ${app.data.userById(replyingTo.authorId)?.displayName}',
                 style: Theme.of(context).textTheme.bodySmall),
             const Spacer(),
             TextButton(
@@ -115,7 +115,7 @@ class _PostDetailViewState extends State<PostDetailView> {
             child: TextField(
               controller: _comment,
               decoration: InputDecoration(
-                hintText: svc.repo.event(post.eventId)!.isPrivate
+                hintText: app.data.eventById(post.eventId)!.isPrivate
                     ? 'Comment (visible to this private session only)'
                     : 'Add a comment…',
               ),
@@ -163,7 +163,7 @@ class _PostDetailViewState extends State<PostDetailView> {
     final app = context.appRead;
     if (runAction(
         context,
-        () => app.service
+        () => app.feed
             .addComment(app.me!.id, post.id, _comment.text, parentId: _replyTo))) {
       _comment.clear();
       setState(() => _replyTo = null);
